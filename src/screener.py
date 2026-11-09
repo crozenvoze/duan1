@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import re
 from typing import Any
 
 import pandas as pd
@@ -12,6 +13,60 @@ REQUIRED_SCREEN_COLUMNS = {
     "ticker", "pe", "pb", "roe", "revenue_growth", "eps_growth",
     "debt_to_equity", "avg_value_traded", "market_cap", "industry",
 }
+SCREEN_NUMERIC_COLUMNS = (
+    "pe", "pb", "roe", "revenue_growth", "eps_growth", "debt_to_equity",
+    "avg_value_traded", "market_cap", "momentum",
+)
+
+
+def normalize_screener_data(data: pd.DataFrame) -> pd.DataFrame:
+    """Chuẩn hóa một snapshot Screener_Data hoặc CSV trước khi lọc/xếp hạng.
+
+    Đầu vào cần một hàng cho mỗi mã, đủ các cột bắt buộc trong
+    ``REQUIRED_SCREEN_COLUMNS``; ``momentum`` là tùy chọn. Ô số được để trống
+    khi nguồn không có dữ liệu, nhưng giá trị chữ không hợp lệ và mã trùng bị từ
+    chối. Đầu ra giữ các cột bổ sung để không làm mất metadata của người dùng.
+    Tỷ lệ ROE/tăng trưởng dùng dạng thập phân (0.15 = 15%).
+    """
+    if not isinstance(data, pd.DataFrame):
+        raise ValueError("Dữ liệu Screener phải là một bảng CSV hoặc DataFrame.")
+    frame = data.copy()
+    normalized_columns = [str(column).strip().lower() for column in frame.columns]
+    if len(set(normalized_columns)) != len(normalized_columns):
+        raise ValueError("Tên cột bị trùng sau khi chuẩn hóa chữ hoa/thường và khoảng trắng.")
+    frame.columns = normalized_columns
+    missing = REQUIRED_SCREEN_COLUMNS - set(frame.columns)
+    if missing:
+        raise ValueError(f"Thiếu cột bắt buộc: {', '.join(sorted(missing))}.")
+    if frame.empty:
+        raise ValueError("File không có dòng dữ liệu cổ phiếu.")
+
+    frame["ticker"] = frame["ticker"].fillna("").astype(str).str.strip().str.upper()
+    invalid_tickers = [
+        f"dòng {index + 2}: {ticker or '(trống)'}"
+        for index, ticker in enumerate(frame["ticker"].tolist())
+        if not re.fullmatch(r"[A-Z]{3}", ticker)
+    ]
+    if invalid_tickers:
+        raise ValueError("Mã cổ phiếu phải gồm đúng 3 chữ cái; lỗi ở " + ", ".join(invalid_tickers[:5]) + ".")
+    duplicate_tickers = frame.loc[frame["ticker"].duplicated(keep=False), "ticker"].drop_duplicates().tolist()
+    if duplicate_tickers:
+        raise ValueError("Mỗi snapshot chỉ được có một dòng cho mỗi mã; mã trùng: " + ", ".join(duplicate_tickers[:10]) + ".")
+
+    if "momentum" not in frame.columns:
+        frame["momentum"] = float("nan")
+    for column in SCREEN_NUMERIC_COLUMNS:
+        original = frame[column]
+        converted = pd.to_numeric(original, errors="coerce")
+        invalid = original.notna() & original.astype(str).str.strip().ne("") & converted.isna()
+        invalid |= converted.notna() & ~converted.map(lambda value: pd.notna(value) and abs(float(value)) != float("inf"))
+        if invalid.any():
+            rows = [str(index + 2) for index in frame.index[invalid][:5]]
+            raise ValueError(f"Cột {column} có giá trị không phải số hữu hạn tại dòng " + ", ".join(rows) + ".")
+        frame[column] = converted.astype(float)
+
+    frame["industry"] = frame["industry"].fillna("").astype(str).str.strip()
+    return frame.reset_index(drop=True)
 
 
 def filter_stocks(data: pd.DataFrame, criteria: dict[str, Any]) -> pd.DataFrame:

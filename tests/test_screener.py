@@ -6,7 +6,7 @@ from unittest.mock import patch
 from gspread.exceptions import WorksheetNotFound
 import pandas as pd
 
-from src.screener import filter_stocks, rank_stocks, save_favorite_filter
+from src.screener import filter_stocks, normalize_screener_data, rank_stocks, save_favorite_filter
 
 
 class FakeWorksheet:
@@ -39,6 +39,45 @@ class FakeSpreadsheet:
 
 
 class ScreenerTests(unittest.TestCase):
+    def test_normalize_screener_data_converts_values_and_allows_optional_momentum(self):
+        data = pd.DataFrame([{
+            " Ticker ": "fpt", "PE": "12.5", "PB": "2.1", "ROE": "0.15",
+            "Revenue_Growth": "0.10", "EPS_Growth": "0.08", "Debt_To_Equity": "0.3",
+            "Avg_Value_Traded": "1000000000", "Market_Cap": "50000000000000",
+            "Industry": " Công nghệ ", "source_note": "annual filing",
+        }])
+
+        result = normalize_screener_data(data)
+
+        self.assertEqual(result.loc[0, "ticker"], "FPT")
+        self.assertAlmostEqual(result.loc[0, "roe"], 0.15)
+        self.assertEqual(result.loc[0, "industry"], "Công nghệ")
+        self.assertTrue(pd.isna(result.loc[0, "momentum"]))
+        self.assertEqual(result.loc[0, "source_note"], "annual filing")
+
+    def test_normalize_screener_data_rejects_missing_columns(self):
+        with self.assertRaisesRegex(ValueError, "Thiếu cột bắt buộc"):
+            normalize_screener_data(pd.DataFrame([{"ticker": "FPT"}]))
+
+    def test_normalize_screener_data_rejects_invalid_numeric_values(self):
+        data = pd.DataFrame([{
+            "ticker": "FPT", "pe": "twelve", "pb": 2, "roe": .15,
+            "revenue_growth": .1, "eps_growth": .08, "debt_to_equity": .3,
+            "avg_value_traded": 1e9, "market_cap": 5e13, "industry": "Tech",
+        }])
+        with self.assertRaisesRegex(ValueError, "Cột pe có giá trị không phải số hữu hạn"):
+            normalize_screener_data(data)
+
+    def test_normalize_screener_data_rejects_duplicate_tickers(self):
+        data = pd.DataFrame([
+            {"ticker": "FPT", "pe": 10, "pb": 1, "roe": .1, "revenue_growth": .1,
+             "eps_growth": .1, "debt_to_equity": .2, "avg_value_traded": 1, "market_cap": 1, "industry": "Tech"},
+            {"ticker": "fpt", "pe": 11, "pb": 1, "roe": .1, "revenue_growth": .1,
+             "eps_growth": .1, "debt_to_equity": .2, "avg_value_traded": 1, "market_cap": 1, "industry": "Tech"},
+        ])
+        with self.assertRaisesRegex(ValueError, "mã trùng: FPT"):
+            normalize_screener_data(data)
+
     def test_filter_and_rank(self):
         data = pd.DataFrame([
             {"ticker": "AAA", "pe": 8, "pb": 1, "roe": .2, "revenue_growth": .15, "eps_growth": .12,

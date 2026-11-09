@@ -83,7 +83,7 @@ GitHub Actions runs the Python suite, syntax check, and Apps Script smoke suite 
 
 ## Google Sheets tabs
 
-`Trades`, `Watchlist`, `Fundamentals`, `Bank_Fundamentals`, `Prices_Cache`, `Screener_Data`, and `Saved_Filters` are used by the pages that need them. On 2026-11-10, the six non-journal tabs were initialized with their expected header rows in the connected private Sheet; they contain no sample ticker or valuation rows. Add your own symbols to `Watchlist`; `Prices_Cache` is populated only after its scheduled workflow is configured. `Screener_Data` currently expects normalized input rows and is not populated automatically. `Bank_Fundamentals` appends reviewed bank-ratio calculations. The journal's `Trades` columns are `trade_id, timestamp, trade_date, ticker, side, price, quantity, fee, reason, stop_loss, target, strategy_tag`.
+`Trades`, `Watchlist`, `Fundamentals`, `Bank_Fundamentals`, `Prices_Cache`, `Screener_Data`, and `Saved_Filters` are used by the pages that need them. On 2026-11-10, the six non-journal tabs were initialized with their expected header rows in the connected private Sheet; they contain no sample ticker or valuation rows. Add your own symbols to `Watchlist`; `Prices_Cache` is populated only after its scheduled workflow is configured. `Screener_Data` accepts normalized Sheet rows or a session-only CSV upload; it is not populated automatically. See the [Screener data dictionary and CSV template](docs/screener-data.md). `Bank_Fundamentals` appends reviewed bank-ratio calculations. The journal's `Trades` columns are `trade_id, timestamp, trade_date, ticker, side, price, quantity, fee, reason, stop_loss, target, strategy_tag`.
 
 ## Scheduled price cache updates
 

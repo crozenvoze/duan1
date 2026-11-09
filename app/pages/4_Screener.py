@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.screener import filter_stocks, rank_stocks, save_favorite_filter
+from src.screener import filter_stocks, normalize_screener_data, rank_stocks, save_favorite_filter
 from src.sheets import read_worksheet
 
 st.set_page_config(page_title="Stock Screener", page_icon="🔎", layout="wide")
@@ -30,14 +30,39 @@ st.caption("Nguồn dữ liệu là tab Screener_Data; kiểm tra kỳ và đơn
 if st.button("Làm mới screener"):
     load_screener_data.clear()
 
+sheet_error = None
 try:
     data = load_screener_data()
 except Exception:
-    st.error("Không đọc được tab Screener_Data trong Google Sheet.")
+    data = pd.DataFrame()
+    sheet_error = "Không đọc được tab Screener_Data trong Google Sheet. Có thể nạp CSV ở đây để chạy bộ lọc trong phiên hiện tại."
+
+st.caption("Dùng bảng trong Sheet hoặc nạp CSV. File CSV chỉ được dùng trong phiên này, không tự ghi vào Sheet.")
+uploaded_csv = st.file_uploader(
+    "Nạp snapshot Screener CSV",
+    type=["csv"],
+    help="Mẫu rỗng: data/screener_template.csv. ROE và tăng trưởng nhập dạng thập phân, ví dụ 0.15 = 15%.",
+)
+if uploaded_csv is not None:
+    try:
+        csv_data = pd.read_csv(uploaded_csv, encoding="utf-8-sig")
+        data = normalize_screener_data(csv_data)
+        st.success(f"Đã nạp {len(data)} mã từ CSV; file chưa được lưu vào Google Sheets.")
+    except Exception as exc:
+        st.error(f"Không dùng được CSV: {exc}")
+        st.stop()
+elif not data.empty:
+    try:
+        data = normalize_screener_data(data)
+    except ValueError as exc:
+        st.error(f"Dữ liệu trong tab Screener_Data chưa đúng: {exc}")
+        st.stop()
+elif sheet_error:
+    st.error(sheet_error)
     st.stop()
 
 if data.empty:
-    st.info("Tạo tab Screener_Data với các cột: ticker, pe, pb, roe, revenue_growth, eps_growth, debt_to_equity, avg_value_traded, market_cap, industry, momentum.")
+    st.info("Tab Screener_Data chưa có mã. Hãy nhập dữ liệu vào Sheet hoặc nạp CSV theo mẫu Screener.")
     st.stop()
 
 with st.sidebar:
@@ -81,7 +106,22 @@ except Exception as exc:
 
 st.write(f"Số mã phù hợp: **{len(ranked)}**")
 if not ranked.empty:
-    st.dataframe(ranked, hide_index=True, width="stretch")
+    screen_column_config = {
+        "pe": st.column_config.NumberColumn("P/E", format="%.2f"),
+        "pb": st.column_config.NumberColumn("P/B", format="%.2f"),
+        "roe": st.column_config.NumberColumn("ROE", format="percent"),
+        "revenue_growth": st.column_config.NumberColumn("Tăng trưởng doanh thu", format="percent"),
+        "eps_growth": st.column_config.NumberColumn("Tăng trưởng EPS", format="percent"),
+        "debt_to_equity": st.column_config.NumberColumn("Nợ vay/VCSH", format="%.2f"),
+        "avg_value_traded": st.column_config.NumberColumn("GTGD TB (VND/phiên)", format="localized"),
+        "market_cap": st.column_config.NumberColumn("Vốn hóa (VND)", format="localized"),
+        "composite_score": st.column_config.NumberColumn("Điểm tổng hợp", format="percent"),
+        "value_score": st.column_config.NumberColumn("Điểm value", format="percent"),
+        "quality_score": st.column_config.NumberColumn("Điểm quality", format="percent"),
+        "growth_score": st.column_config.NumberColumn("Điểm growth", format="percent"),
+        "momentum_score": st.column_config.NumberColumn("Điểm momentum", format="percent"),
+    }
+    st.dataframe(ranked, hide_index=True, width="stretch", column_config=screen_column_config)
     st.download_button(
         "Tải kết quả CSV",
         ranked.to_csv(index=False).encode("utf-8-sig"),
