@@ -77,6 +77,27 @@ class PriceCacheTests(unittest.TestCase):
         self.assertEqual(spreadsheet.sheet.appended, [])
         self.assertEqual(spreadsheet.sheet.updates[0]["range"], "A2:G2")
 
+    def test_does_not_rewrite_identical_row_returned_as_sheet_serials(self):
+        # Google Sheets returns dates as serials and numeric cells as numbers
+        # when UNFORMATTED_VALUE is requested.
+        values = [
+            ["ticker", "date", "open", "high", "low", "close", "volume"],
+            ["FPT", 46335, 100000, 101000, 99000, 100500, 123456],
+        ]
+        spreadsheet = FakeSpreadsheet(FakeWorksheet(values))
+        with patch("src.sheets.open_spreadsheet", return_value=spreadsheet):
+            added, updated = upsert_prices_cache([self.record])
+
+        self.assertEqual((added, updated), (0, 0))
+        self.assertEqual(spreadsheet.sheet.appended, [])
+        self.assertEqual(spreadsheet.sheet.updates, [])
+        self.assertEqual(
+            spreadsheet.sheet.read_options["value_render_option"], "UNFORMATTED_VALUE"
+        )
+        self.assertEqual(
+            spreadsheet.sheet.read_options["date_time_render_option"], "SERIAL_NUMBER"
+        )
+
     def test_empty_update_does_not_open_sheet(self):
         with patch("src.sheets.open_spreadsheet") as open_sheet:
             self.assertEqual(upsert_prices_cache([]), (0, 0))

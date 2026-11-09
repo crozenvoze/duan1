@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import gspread
@@ -11,6 +13,28 @@ from google.oauth2.service_account import Credentials
 from src.config import get_credentials_path, get_setting, get_spreadsheet_id
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+_SHEETS_EPOCH = datetime(1899, 12, 30)
+
+
+def _date_key(value: Any) -> str:
+    """Chuẩn hóa ngày ISO, datetime hoặc serial ngày của Google Sheets."""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return (_SHEETS_EPOCH + timedelta(days=float(value))).date().isoformat()
+    return str(value).strip()[:10]
+
+
+def _same_cell_value(old_value: Any, new_value: Any) -> bool:
+    """So sánh số dạng số để tránh ghi lại vì khác cách biểu diễn 100 và 100.0."""
+    try:
+        old_number = float(old_value)
+        new_number = float(new_value)
+    except (TypeError, ValueError):
+        return str(old_value).strip() == str(new_value).strip()
+    return math.isclose(old_number, new_number, rel_tol=1e-12, abs_tol=1e-9)
 
 
 def _create_client() -> gspread.Client:
@@ -82,7 +106,10 @@ def upsert_prices_cache(records: list[dict[str, Any]]) -> tuple[int, int]:
     except gspread.exceptions.WorksheetNotFound:
         worksheet = spreadsheet.add_worksheet(title="Prices_Cache", rows=1000, cols=len(headers))
 
-    values = worksheet.get_all_values()
+    values = worksheet.get_all_values(
+        value_render_option="UNFORMATTED_VALUE",
+        date_time_render_option="SERIAL_NUMBER",
+    )
     if not values:
         worksheet.update(range_name="A1:G1", values=[headers])
         values = [headers]
@@ -94,14 +121,14 @@ def upsert_prices_cache(records: list[dict[str, Any]]) -> tuple[int, int]:
 
     row_by_key: dict[tuple[str, str], int] = {}
     for row_number, row in enumerate(values[1:], start=2):
-        if len(row) >= 2 and row[0].strip() and row[1].strip():
-            row_by_key[(row[0].strip().upper(), row[1].strip()[:10])] = row_number
+        if len(row) >= 2 and str(row[0]).strip() and str(row[1]).strip():
+            row_by_key[(str(row[0]).strip().upper(), _date_key(row[1]))] = row_number
 
     additions: list[list[str]] = []
     updates: list[dict[str, Any]] = []
     for record in records:
         ticker = str(record["ticker"]).strip().upper()
-        date_value = str(record["date"])[:10]
+        date_value = _date_key(record["date"])
         row = [ticker, date_value] + [str(record[name]) for name in headers[2:]]
         key = (ticker, date_value)
         row_number = row_by_key.get(key)
@@ -110,7 +137,11 @@ def upsert_prices_cache(records: list[dict[str, Any]]) -> tuple[int, int]:
         else:
             old_row = values[row_number - 1]
             normalized_old = old_row[:len(headers)] + [""] * max(0, len(headers) - len(old_row))
-            if normalized_old != row:
+            normalized_old[1] = _date_key(normalized_old[1])
+            if not all(
+                _same_cell_value(old, new)
+                for old, new in zip(normalized_old, row)
+            ):
                 updates.append({"range": f"A{row_number}:G{row_number}", "values": [row]})
 
     if updates:
