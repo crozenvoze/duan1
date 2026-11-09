@@ -161,16 +161,15 @@
 
     /** Kiểm tra cấu hình frontend trước khi gửi dữ liệu. */
     function configurationIsReady() {
-      return APPS_SCRIPT_URL.startsWith('https://script.google.com/macros/s/') &&
-        APPS_SCRIPT_URL.endsWith('/exec') &&
-        FORM_TOKEN !== 'YOUR_FORM_TOKEN' && FORM_TOKEN.length >= 16;
+      const validWebAppUrl = /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(APPS_SCRIPT_URL);
+      return validWebAppUrl && FORM_TOKEN !== 'YOUR_FORM_TOKEN' && FORM_TOKEN.length >= 32;
     }
 
     /** Kiểm tra đường dẫn Apps Script bằng GET trạng thái; không gửi lệnh và không sửa Sheet. */
     connectionButton.addEventListener('click', async function () {
       if (sending) return;
       if (!configurationIsReady()) {
-        showStatus('Bản HTML cục bộ chưa có URL Web app và token. Hãy mở URL /exec của Apps Script hoặc làm theo hướng dẫn triển khai bên dưới.', 'error');
+        showStatus('Bản HTML cục bộ cần URL /exec hợp lệ và token dài ít nhất 32 ký tự. Để dùng form riêng tư, hãy mở URL /exec của Apps Script theo hướng dẫn bên dưới.', 'error');
         return;
       }
       sending = true;
@@ -274,7 +273,7 @@
       if (sending) return;
 
       if (!configurationIsReady()) {
-        showStatus('Bản HTML cục bộ chưa có URL Web app và token. Hãy mở URL /exec của Apps Script hoặc làm theo hướng dẫn triển khai bên dưới.', 'error');
+        showStatus('Bản HTML cục bộ cần URL /exec hợp lệ và token dài ít nhất 32 ký tự. Để dùng form riêng tư, hãy mở URL /exec của Apps Script theo hướng dẫn bên dưới.', 'error');
         return;
       }
       if (!form.reportValidity()) return;
