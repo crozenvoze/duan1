@@ -27,6 +27,116 @@ LEGACY_FUNDAMENTALS_HEADERS = [
 ]
 FUNDAMENTALS_HEADERS = LEGACY_FUNDAMENTALS_HEADERS + ["industry", "receivables_ending"]
 
+# Semantic VAS IDs documented by Vnstock. Debt IDs are deliberately omitted:
+# their breakdown varies by template and must be selected explicitly.
+VNSTOCK_VAS_IDS = {
+    "revenue": ("income_statement", "IS_NET_REVENUE"),
+    "gross_profit": ("income_statement", "IS_GROSS_PROFIT"),
+    "net_income": ("income_statement", "IS_NET_PROFIT_AFTER_TAX"),
+    "assets_ending": ("balance_sheet", "BS_TOTAL_ASSETS"),
+    "equity_ending": ("balance_sheet", "BS_OWNER_EQUITY"),
+    "receivables_ending": ("balance_sheet", "BS_SHORT_TERM_RECEIVABLES"),
+    "operating_cash_flow": ("cash_flow", "CF_NET_CASH_FLOWS_FROM_OPERATING_ACTIVITIES"),
+}
+
+
+def _statement_columns(frame: pd.DataFrame) -> tuple[str, str, str]:
+    """Return period, ID and value columns for Vnstock v5/v6 long frames."""
+    aliases = {
+        "period": ("period", "report_period"),
+        "id": ("id", "item_id"),
+        "value": ("value", "item_value"),
+    }
+    found = []
+    for key, candidates in aliases.items():
+        column = next((candidate for candidate in candidates if candidate in frame.columns), None)
+        if column is None:
+            raise ValueError(f"Báo cáo Vnstock thiếu cột {key}; cần bảng dạng long.")
+        found.append(column)
+    return tuple(found)  # type: ignore[return-value]
+
+
+def normalize_vnstock_statements(
+    ticker: str,
+    statements: dict[str, pd.DataFrame],
+    *,
+    period_type: str,
+    borrowing_ids: tuple[str, ...] = (),
+    industry: str = "",
+) -> list[dict[str, Any]]:
+    """Map long Vnstock VAS statements into canonical records.
+
+    Semantic IDs replace translated labels. Debt IDs must be supplied after
+    reviewing that company's statement template. Beginning balances use the
+    previous quarter/year end; the earliest period is skipped.
+    """
+    ticker = ticker.strip().upper()
+    if len(ticker) != 3 or not ticker.isalpha():
+        raise ValueError("Mã cổ phiếu phải gồm đúng ba chữ cái.")
+    if period_type not in {"quarter", "year"}:
+        raise ValueError("period_type chỉ nhận 'quarter' hoặc 'year'.")
+    if not borrowing_ids:
+        raise ValueError("Cần chọn rõ mã VAS khoản vay trước khi tính nợ vay.")
+
+    values_by_period: dict[str, dict[str, float]] = {}
+    for key, (statement, vas_id) in VNSTOCK_VAS_IDS.items():
+        frame = statements.get(statement)
+        if frame is None or frame.empty:
+            continue
+        pcol, idcol, vcol = _statement_columns(frame)
+        rows = frame[frame[idcol].astype(str).str.upper() == vas_id]
+        for _, row in rows.iterrows():
+            try:
+                value = float(row[vcol])
+            except (TypeError, ValueError):
+                continue
+            if isfinite(value):
+                values_by_period.setdefault(str(row[pcol]).strip(), {})[key] = value
+
+    balance = statements.get("balance_sheet", pd.DataFrame())
+    if not balance.empty:
+        pcol, idcol, vcol = _statement_columns(balance)
+        debt_rows = balance[balance[idcol].astype(str).str.upper().isin({x.upper() for x in borrowing_ids})]
+        for report_period, group in debt_rows.groupby(pcol):
+            debt_values = pd.to_numeric(group[vcol], errors="coerce").dropna()
+            if len(debt_values) == len(borrowing_ids):
+                values_by_period.setdefault(str(report_period).strip(), {})["total_borrowings"] = float(debt_values.sum())
+
+    periods = sorted(values_by_period)
+
+    def prior_period(value: str) -> str | None:
+        text = value.upper().replace(" ", "")
+        match = re.fullmatch(r"(\d{4})-Q([1-4])", text)
+        if match and period_type == "quarter":
+            year, quarter = int(match.group(1)), int(match.group(2))
+            return f"{year}-Q{quarter - 1}" if quarter > 1 else f"{year - 1}-Q4"
+        match = re.fullmatch(r"(\d{4})(?:-?FY)?", text)
+        if match and period_type == "year":
+            return f"{int(match.group(1)) - 1}"
+        return None
+
+    output: list[dict[str, Any]] = []
+    for report_period in periods:
+        now = values_by_period[report_period]
+        prior = values_by_period.get(prior_period(report_period) or "", {})
+        required = ("revenue", "net_income", "assets_ending", "equity_ending", "total_borrowings", "operating_cash_flow")
+        if any(now.get(field) is None for field in required):
+            continue
+        if prior.get("assets_ending") is None or prior.get("equity_ending") is None:
+            continue
+        row = {
+            "ticker": ticker, "period": report_period,
+            "revenue": now["revenue"], "gross_profit": now.get("gross_profit", ""),
+            "net_income": now["net_income"],
+            "assets_beginning": prior["assets_ending"], "assets_ending": now["assets_ending"],
+            "equity_beginning": prior["equity_ending"], "equity_ending": now["equity_ending"],
+            "total_borrowings": now["total_borrowings"],
+            "operating_cash_flow": now["operating_cash_flow"],
+            "industry": industry, "receivables_ending": now.get("receivables_ending", ""),
+        }
+        output.append(calculate_fundamental_row(row))
+    return output
+
 
 def cash_conversion_quality_status(
     cash_conversion_values: list[Any],

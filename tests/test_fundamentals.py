@@ -1,11 +1,14 @@
 import unittest
 from unittest.mock import patch
 
+import pandas as pd
+
 from src.fundamentals import (
     FUNDAMENTALS_HEADERS,
     LEGACY_FUNDAMENTALS_HEADERS,
     calculate_fundamental_row,
     cash_conversion_quality_status,
+    normalize_vnstock_statements,
     receivables_growth_status,
     write_fundamentals,
 )
@@ -58,6 +61,43 @@ class FundamentalsTests(unittest.TestCase):
         self.assertIn("25.00%", message)
         self.assertIn("10.00%", message)
         self.assertEqual(receivables_growth_status(records[:1])[0], "unknown")
+
+    def test_normalizer_uses_vas_ids_and_previous_period_balances(self):
+        income = [
+            {"period": period, "id": key, "value": value}
+            for period, values in {
+                "2024-Q4": {"IS_NET_REVENUE": 90, "IS_GROSS_PROFIT": 30, "IS_NET_PROFIT_AFTER_TAX": 8},
+                "2025-Q1": {"IS_NET_REVENUE": 100, "IS_GROSS_PROFIT": 40, "IS_NET_PROFIT_AFTER_TAX": 10},
+            }.items() for key, value in values.items()
+        ]
+        balance = [
+            {"period": period, "id": key, "value": value}
+            for period, values in {
+                "2024-Q4": {"BS_TOTAL_ASSETS": 90, "BS_OWNER_EQUITY": 45, "BS_SHORT_TERM_RECEIVABLES": 20, "BS_DEBT_SHORT": 10, "BS_DEBT_LONG": 5},
+                "2025-Q1": {"BS_TOTAL_ASSETS": 110, "BS_OWNER_EQUITY": 55, "BS_SHORT_TERM_RECEIVABLES": 25, "BS_DEBT_SHORT": 12, "BS_DEBT_LONG": 6},
+            }.items() for key, value in values.items()
+        ]
+        cash_flow = [
+            {"period": "2025-Q1", "id": "CF_NET_CASH_FLOWS_FROM_OPERATING_ACTIVITIES", "value": 12}
+        ]
+        rows = normalize_vnstock_statements(
+            "fpt",
+            {"income_statement": pd.DataFrame(income), "balance_sheet": pd.DataFrame(balance), "cash_flow": pd.DataFrame(cash_flow)},
+            period_type="quarter",
+            borrowing_ids=("BS_DEBT_SHORT", "BS_DEBT_LONG"),
+            industry="Technology",
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["period"], "2025-Q1")
+        self.assertEqual(rows[0]["total_borrowings"], 18)
+        self.assertEqual(rows[0]["assets_beginning"], 90)
+        self.assertEqual(rows[0]["equity_beginning"], 45)
+        self.assertEqual(rows[0]["receivables_ending"], 25)
+        self.assertEqual(rows[0]["industry"], "Technology")
+
+    def test_normalizer_requires_explicit_borrowing_ids(self):
+        with self.assertRaisesRegex(ValueError, "mã VAS khoản vay"):
+            normalize_vnstock_statements("FPT", {}, period_type="quarter")
 
     def test_fundamentals_writer_migrates_legacy_headers_append_only(self):
         class Worksheet:

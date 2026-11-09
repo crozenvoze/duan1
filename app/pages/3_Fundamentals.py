@@ -15,8 +15,10 @@ from src.fundamentals import (
     calculate_fundamental_row,
     cash_conversion_quality_status,
     fetch_raw_statements,
+    normalize_vnstock_statements,
     receivables_growth_status,
     read_fundamentals,
+    write_fundamentals,
 )
 
 st.set_page_config(page_title="Fundamentals", page_icon="📊", layout="wide")
@@ -37,22 +39,77 @@ except Exception:
     st.error("Không đọc được tab Fundamentals. Kiểm tra kết nối Google Sheets.")
     st.stop()
 
-if data.empty or "ticker" not in data.columns:
-    st.info("Tab Fundamentals chưa có dữ liệu chuẩn hóa. Chưa tự ánh xạ nhãn báo cáo vì schema nguồn Vnstock phụ thuộc nguồn/kỳ.")
-    ticker_raw = st.text_input("Mã cần xem báo cáo thô", max_chars=3, placeholder="FPT").strip().upper()
-    period = st.selectbox("Kỳ báo cáo", ["quarter", "year"], format_func=lambda value: "Quý" if value == "quarter" else "Năm")
-    if st.button("Lấy báo cáo thô từ Vnstock"):
+with st.expander("Lấy, ánh xạ và lưu BCTC Vnstock", expanded=data.empty):
+    st.caption(
+        "Ứng dụng dùng mã VAS ổn định cho các chỉ tiêu đã biết. Bạn cần chọn rõ hai mã khoản vay "
+        "trong bảng cân đối trước khi tính và lưu; không dùng tổng nợ phải trả thay nợ vay."
+    )
+    fetch_col, period_col = st.columns([2, 1])
+    with fetch_col:
+        ticker_raw = st.text_input("Mã cổ phiếu", max_chars=3, placeholder="FPT", key="fundamental_fetch_ticker").strip().upper()
+    with period_col:
+        period_type = st.selectbox(
+            "Kỳ lấy dữ liệu", ["quarter", "year"],
+            format_func=lambda value: "Quý" if value == "quarter" else "Năm",
+            key="fundamental_fetch_period",
+        )
+    if st.button("Lấy báo cáo từ Vnstock", key="fetch_fundamental_statements"):
         if len(ticker_raw) != 3 or not ticker_raw.isalpha():
             st.error("Nhập mã gồm đúng 3 chữ cái.")
         else:
             try:
-                raw = fetch_raw_statements(ticker_raw, period)
-                for name, frame in raw.items():
-                    st.markdown(f"#### {name}")
-                    st.dataframe(frame, use_container_width=True)
-                st.warning("Đối chiếu nhãn báo cáo với VAS và schema nội bộ trước khi ghi chỉ số.")
+                st.session_state["fundamental_raw"] = fetch_raw_statements(ticker_raw, period_type)
+                st.session_state["fundamental_raw_ticker"] = ticker_raw
+                st.session_state["fundamental_raw_period"] = period_type
             except Exception as exc:
                 st.error(str(exc))
+
+    raw = st.session_state.get("fundamental_raw")
+    if raw:
+        for name, frame in raw.items():
+            st.markdown(f"**{name}**")
+            st.dataframe(frame, use_container_width=True, hide_index=True)
+        balance = raw.get("balance_sheet", pd.DataFrame())
+        if not balance.empty:
+            id_col = "id" if "id" in balance.columns else "item_id" if "item_id" in balance.columns else None
+            name_col = "name" if "name" in balance.columns else "item_name" if "item_name" in balance.columns else None
+            if id_col:
+                candidates = balance[[id_col] + ([name_col] if name_col else [])].drop_duplicates().dropna(subset=[id_col])
+                option_labels = {
+                    str(row[id_col]): f"{row[id_col]} — {row[name_col]}" if name_col and pd.notna(row[name_col]) else str(row[id_col])
+                    for _, row in candidates.iterrows()
+                }
+                ids = list(option_labels)
+                if len(ids) < 2:
+                    st.warning("Bảng cân đối cần có ít nhất hai mã để chọn khoản vay ngắn hạn và dài hạn.")
+                else:
+                    st.markdown("**Chọn mã khoản vay theo đúng dòng của báo cáo**")
+                    short_id = st.selectbox("Vay ngắn hạn", ids, format_func=lambda value: option_labels[value], key="fundamental_short_debt_id")
+                    long_options = [value for value in ids if value != short_id]
+                    long_id = st.selectbox("Vay dài hạn", long_options, format_func=lambda value: option_labels[value], key="fundamental_long_debt_id")
+                    industry = st.text_input("Ngành để so sánh", placeholder="Công nghệ, Bán lẻ...", key="fundamental_industry")
+                    if st.button("Chuẩn hóa và lưu vào Fundamentals", key="save_fundamental_rows"):
+                        try:
+                            rows = normalize_vnstock_statements(
+                                st.session_state["fundamental_raw_ticker"],
+                                raw,
+                                period_type=st.session_state["fundamental_raw_period"],
+                                borrowing_ids=(short_id, long_id),
+                                industry=industry.strip(),
+                            )
+                            if not rows:
+                                st.warning("Chưa tạo được dòng nào: cần có kỳ hiện tại và kỳ liền trước, cùng đủ các chỉ tiêu bắt buộc.")
+                            else:
+                                count = write_fundamentals(rows)
+                                load_fundamentals.clear()
+                                st.success(f"Đã thêm {count} kỳ vào tab Fundamentals; các kỳ đã có không bị ghi đè.")
+                        except Exception as exc:
+                            st.error(f"Không thể chuẩn hóa hoặc lưu dữ liệu: {exc}")
+            else:
+                st.warning("Không tìm thấy cột mã VAS trong bảng cân đối; cần báo cáo dạng long của Vnstock.")
+
+if data.empty or "ticker" not in data.columns:
+    st.info("Tab Fundamentals chưa có dữ liệu chuẩn hóa. Dùng phần trên để lấy BCTC, xem mã VAS, chọn rõ khoản vay và lưu các kỳ đủ dữ liệu.")
     st.stop()
 
 symbols = sorted(data["ticker"].dropna().astype(str).str.upper().unique())
