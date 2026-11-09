@@ -79,6 +79,17 @@ The 10-trade hand calculation and expected results are in [`docs/sample_calculat
 
 `Trades`, `Watchlist`, `Fundamentals`, `Prices_Cache`, `Screener_Data`, and `Saved_Filters` are expected by the pages that use them. The journal's `Trades` columns are `trade_id, timestamp, trade_date, ticker, side, price, quantity, fee, reason, stop_loss, target, strategy_tag`.
 
+## Scheduled price cache updates
+
+`.github/workflows/update_data.yml` is scheduled for 17:30 Vietnam time on weekdays and can also be started manually from the repository's Actions page. It reads ticker symbols from `Watchlist` and only upserts OHLCV rows into `Prices_Cache`; it never reads or exports `Trades`. The workflow stays idle until all required GitHub Secrets are configured:
+
+- `GOOGLE_SHEETS_SPREADSHEET_ID`
+- `GOOGLE_SERVICE_ACCOUNT_JSON` (the JSON contents, stored only as a GitHub Secret)
+- `VNSTOCK_SOURCE` (`ssi` or `fhsc`)
+- `SSI_API_KEY` and `SSI_API_SECRET` for `ssi`, or `FHSC_API_KEY` for `fhsc`
+
+The service account needs edit access to the private Sheet. Do not add the credential JSON to the repository or paste it into chat. Vnstock access, provider credentials, quotas, and API behavior depend on the selected provider; the job reports failures by ticker and error type without printing secret values. The schedule is prepared but will not update live prices until those secrets are configured.
+
 ## Deployment and public demos
 
 The full local app is ready for private use. `demo_app.py` is the public-safe entrypoint and uses fictional sample trades only; deploy that file for a portfolio demo. Do not deploy `app/main.py` with credentials to the personal Sheet as a public app. Streamlit Community Cloud accepts app secrets in its settings, but that does not make private trade data safe to expose through a public app. Keep the repository private if it contains any non-demo data or configuration.
@@ -89,4 +100,4 @@ The static form token is present in the browser when a form is served, so it mus
 
 ## Project status
 
-Core analytics and dashboard pages are implemented. The backtest includes benchmark and fee sensitivity; private deployments still need a working Sheets service account and market-data source configuration. Automated statement collection, reviewed VAS mapping, bank-specific ratios, scheduled data updates, and public deployment are not completed because they require provider credentials and/or authorization to configure external services. The tests validate calculations against fictional examples, not live provider data.
+Core analytics and dashboard pages are implemented. The backtest includes benchmark and fee sensitivity. The scheduled Watchlist price workflow is prepared but requires private GitHub Secrets for Google Sheets and the chosen Vnstock source before it can run. Automated statement collection, reviewed VAS mapping, bank-specific ratios, and public deployment remain incomplete because they require provider credentials and/or external account setup. The tests validate calculations against fictional examples, not live provider data.

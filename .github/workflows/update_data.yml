@@ -1,0 +1,75 @@
+name: Update watchlist prices
+
+on:
+  schedule:
+    # 17:30 giờ Việt Nam, từ thứ Hai đến thứ Sáu (UTC).
+    - cron: "30 10 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-watchlist-prices
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required GitHub secrets
+        id: preflight
+        env:
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          VNSTOCK_SOURCE: ${{ secrets.VNSTOCK_SOURCE }}
+          SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
+          SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
+          FHSC_API_KEY: ${{ secrets.FHSC_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+
+          spreadsheet_id = bool(os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID"))
+          service_account = bool(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON"))
+          source = (os.getenv("VNSTOCK_SOURCE") or "").strip().lower()
+          source_ready = {
+              "ssi": bool(os.getenv("SSI_API_KEY") and os.getenv("SSI_API_SECRET")),
+              "fhsc": bool(os.getenv("FHSC_API_KEY")),
+          }.get(source, False)
+          ready = spreadsheet_id and service_account and source_ready
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"ready={'true' if ready else 'false'}\n")
+          if not ready:
+              print("::notice::Chưa cấu hình đủ GitHub Secrets cho Google Sheets và nguồn Vnstock; bỏ qua lần chạy.")
+          PY
+
+      - name: Check out repository
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install data update dependencies
+        if: steps.preflight.outputs.ready == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pandas>=2.2,<4" "gspread>=6,<7" "google-auth>=2,<3" "python-dotenv>=1,<2"
+          python -m pip install -r requirements-vnstock-v6.txt
+
+      - name: Refresh Watchlist prices
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          VNSTOCK_SOURCE: ${{ secrets.VNSTOCK_SOURCE }}
+          SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
+          SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
+          FHSC_API_KEY: ${{ secrets.FHSC_API_KEY }}
+        run: python -m src.update_data

@@ -58,6 +58,61 @@ def read_worksheet(title: str) -> list[list[str]]:
         raise RuntimeError(f"Không tìm thấy tab '{title}' trong Google Sheet.") from exc
 
 
+def upsert_prices_cache(records: list[dict[str, Any]]) -> tuple[int, int]:
+    """Thêm/cập nhật OHLCV theo khóa (ticker, date) vào Prices_Cache.
+
+    Đầu vào là các bản ghi đã chuẩn hóa gồm ticker, date, open, high, low,
+    close, volume. Trả về (số dòng thêm, số dòng cập nhật); không đụng tới
+    các tab Trades hoặc Watchlist.
+    """
+    if not records:
+        return 0, 0
+
+    headers = ["ticker", "date", "open", "high", "low", "close", "volume"]
+    spreadsheet = open_spreadsheet()
+    try:
+        worksheet = spreadsheet.worksheet("Prices_Cache")
+    except gspread.exceptions.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(title="Prices_Cache", rows=1000, cols=len(headers))
+
+    values = worksheet.get_all_values()
+    if not values:
+        worksheet.update(range_name="A1:G1", values=[headers])
+        values = [headers]
+    actual_headers = [str(cell).strip().lower() for cell in values[0]]
+    if actual_headers != headers:
+        raise RuntimeError(
+            "Tab Prices_Cache phải có đúng thứ tự cột: " + ", ".join(headers)
+        )
+
+    row_by_key: dict[tuple[str, str], int] = {}
+    for row_number, row in enumerate(values[1:], start=2):
+        if len(row) >= 2 and row[0].strip() and row[1].strip():
+            row_by_key[(row[0].strip().upper(), row[1].strip()[:10])] = row_number
+
+    additions: list[list[str]] = []
+    updates: list[dict[str, Any]] = []
+    for record in records:
+        ticker = str(record["ticker"]).strip().upper()
+        date_value = str(record["date"])[:10]
+        row = [ticker, date_value] + [str(record[name]) for name in headers[2:]]
+        key = (ticker, date_value)
+        row_number = row_by_key.get(key)
+        if row_number is None:
+            additions.append(row)
+        else:
+            old_row = values[row_number - 1]
+            normalized_old = old_row[:len(headers)] + [""] * max(0, len(headers) - len(old_row))
+            if normalized_old != row:
+                updates.append({"range": f"A{row_number}:G{row_number}", "values": [row]})
+
+    if updates:
+        worksheet.batch_update(updates, value_input_option="USER_ENTERED")
+    if additions:
+        worksheet.append_rows(additions, value_input_option="USER_ENTERED")
+    return len(additions), len(updates)
+
+
 def main() -> None:
     """Kiểm tra kết nối mà không in dữ liệu giao dịch riêng tư ra terminal."""
     rows = read_trades()
