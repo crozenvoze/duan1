@@ -5,10 +5,24 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from src.backtest import efficient_frontier, fee_sensitivity, optimize_markowitz, portfolio_risk, run_backtest
+from src.backtest import _rsi, efficient_frontier, fee_sensitivity, optimize_markowitz, portfolio_risk, run_backtest
 
 
 class BacktestTests(unittest.TestCase):
+    def test_rsi_handles_one_way_and_flat_price_series(self):
+        rising = _rsi(pd.Series([1, 2, 3, 4, 5, 6], dtype=float), period=2)
+        falling = _rsi(pd.Series([6, 5, 4, 3, 2, 1], dtype=float), period=2)
+        flat = _rsi(pd.Series([5, 5, 5, 5, 5, 5], dtype=float), period=2)
+
+        self.assertEqual(rising.iloc[-1], 100)
+        self.assertEqual(falling.iloc[-1], 0)
+        self.assertEqual(flat.iloc[-1], 50)
+
+    def test_rsi_rejects_non_positive_period(self):
+        prices = pd.DataFrame({"date": pd.date_range("2025-01-01", periods=5), "close": [1, 2, 3, 2, 4]})
+        with self.assertRaisesRegex(ValueError, "rsi_period"):
+            run_backtest(prices, strategy="rsi", rsi_period=0)
+
     def test_portfolio_risk_methods(self):
         results = portfolio_risk(np.array([-0.10, 0.0, 0.10, -0.02, 0.03]), 1_000_000, seed=1)
         self.assertEqual(set(results), {"historical", "parametric", "monte_carlo"})

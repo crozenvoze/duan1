@@ -22,12 +22,15 @@ STANDARD_PRICE_LIMITS = {"HOSE": 0.07, "HNX": 0.10, "UPCOM": 0.15}
 
 
 def _rsi(close: pd.Series, period: int) -> pd.Series:
-    """Tính RSI Wilder gần đúng bằng trung bình lăn trên thay đổi tăng/giảm."""
+    """Tính RSI Wilder bằng EMA; chuỗi chỉ tăng có RSI 100, chuỗi đi ngang là 50."""
     delta = close.diff()
     gain = delta.clip(lower=0).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
     loss = -delta.clip(upper=0).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
     relative_strength = gain / loss.replace(0, np.nan)
-    return 100 - (100 / (1 + relative_strength))
+    result = 100 - (100 / (1 + relative_strength))
+    result = result.mask((loss == 0) & (gain > 0), 100.0)
+    result = result.mask((loss == 0) & (gain == 0), 50.0)
+    return result
 
 
 def _signals(data: pd.DataFrame, strategy: str, fast: int, slow: int, rsi_period: int) -> pd.Series:
@@ -84,6 +87,8 @@ def run_backtest(
         raise ValueError("Vốn ban đầu/lô phải dương; phí và trượt giá không âm.")
     if strategy == "ma_cross" and (fast_window <= 0 or slow_window <= fast_window):
         raise ValueError("MA cần 0 < fast_window < slow_window.")
+    if strategy == "rsi" and rsi_period <= 0:
+        raise ValueError("rsi_period phải là số nguyên dương.")
 
     data = prices.copy()
     data["date"] = pd.to_datetime(data["date"], errors="coerce")
