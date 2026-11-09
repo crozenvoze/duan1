@@ -122,7 +122,7 @@ try:
              **{column: "{:.2%}" for column in change_columns}, "KL / TB 20 phiên": "{:.2f}x"},
             na_rep="—",
         )
-        st.dataframe(styled, hide_index=True, use_container_width=True)
+        st.dataframe(styled, hide_index=True, width="stretch")
     elif not errors:
         st.info("Chưa có mã hợp lệ trong Watchlist.")
 except Exception:

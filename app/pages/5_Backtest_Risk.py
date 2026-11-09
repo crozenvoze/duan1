@@ -93,8 +93,8 @@ if st.button("Chạy backtest", type="primary"):
                 benchmark_curve = result["benchmark_curve"]
                 fig.add_trace(go.Scatter(x=benchmark_curve["date"], y=benchmark_curve["benchmark_normalized"], mode="lines", name="VN-Index"))
             fig.update_layout(title="Đường vốn", yaxis_title="VND", height=420)
-            st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(result["trades"], hide_index=True, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
+            st.dataframe(result["trades"], hide_index=True, width="stretch")
             st.markdown("**Giả định và hạn chế**")
             for assumption in result["assumptions"]:
                 st.write(f"- {assumption}")
@@ -111,7 +111,7 @@ if st.button("Chạy backtest", type="primary"):
                 risk_free_rate=risk_free,
                 limit_pct_by_exchange=STANDARD_PRICE_LIMITS,
             )
-            st.dataframe(sensitivity, hide_index=True, use_container_width=True)
+            st.dataframe(sensitivity, hide_index=True, width="stretch")
             st.caption("Biên độ giá mặc định cho ngày giao dịch thông thường: HOSE ±7%, HNX ±10%, UPCoM ±15%; cần kiểm tra trường hợp đặc biệt trước khi diễn giải.")
         except Exception as exc:
             st.error(f"Không chạy được backtest: {exc}")
@@ -140,7 +140,7 @@ if st.button("Tính VaR/CVaR"):
             portfolio_value = sum(market_values.values())
             result = portfolio_risk(weighted_returns, portfolio_value)
             st.write(f"Giá trị danh mục ước tính theo close gần nhất: **{portfolio_value:,.0f} VND**")
-            st.dataframe(pd.DataFrame(result).T.rename(columns={"VaR": "VaR (VND)", "CVaR": "CVaR (VND)"}), use_container_width=True)
+            st.dataframe(pd.DataFrame(result).T.rename(columns={"VaR": "VaR (VND)", "CVaR": "CVaR (VND)"}), width="stretch")
             st.caption("Parametric và Monte Carlo giả định phân phối chuẩn; vị thế/giá được ước tính từ nhật ký và close gần nhất.")
     except Exception as exc:
         st.error(f"Không tính được VaR/CVaR: {exc}")
@@ -167,7 +167,7 @@ if st.button("Tối ưu danh mục"):
         frontier = efficient_frontier(return_frame, max_weight=max_weight)
         frontier_chart = go.Figure(go.Scatter(x=frontier["annual_volatility"], y=frontier["annual_return"], mode="lines+markers", name="Đường biên hiệu quả"))
         frontier_chart.update_layout(title="Đường biên hiệu quả", xaxis_title="Biến động năm hóa", yaxis_title="Lợi suất kỳ vọng năm hóa", height=360)
-        st.plotly_chart(frontier_chart, use_container_width=True)
+        st.plotly_chart(frontier_chart, width="stretch")
         st.caption("Kết quả nhạy với giai đoạn dữ liệu và không bảo đảm hiệu suất tương lai.")
     except Exception as exc:
         st.error(f"Không tối ưu được danh mục: {exc}")

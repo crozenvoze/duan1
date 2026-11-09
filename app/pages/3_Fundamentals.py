@@ -149,7 +149,7 @@ with st.expander("Lịch sử chỉ số ngân hàng đã lưu"):
             st.dataframe(
                 bank_history.sort_values("saved_at", ascending=False),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
             )
     except Exception:
         st.error("Không đọc được lịch sử Bank_Fundamentals trong Google Sheets.")
@@ -188,7 +188,7 @@ with st.expander("Lấy, ánh xạ và lưu BCTC Vnstock", expanded=data.empty):
     if raw:
         for name, frame in raw.items():
             st.markdown(f"**{name}**")
-            st.dataframe(frame, use_container_width=True, hide_index=True)
+            st.dataframe(frame, width="stretch", hide_index=True)
         balance = raw.get("balance_sheet", pd.DataFrame())
         if not balance.empty:
             id_col = "id" if "id" in balance.columns else "item_id" if "item_id" in balance.columns else None
@@ -261,7 +261,7 @@ with left:
         x=metrics["period"], y=metrics["revenue"], mode="lines+markers", name="Doanh thu thuần"
     ))
     fig.update_layout(title="Doanh thu thuần theo kỳ", yaxis_title="VND", height=340)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with right:
     fig = go.Figure()
@@ -269,7 +269,7 @@ with right:
         if column in metrics:
             fig.add_trace(go.Scatter(x=metrics["period"], y=metrics[column] * 100, mode="lines+markers", name=label))
     fig.update_layout(title="Biên lợi nhuận, ROE và ROA", yaxis_title="%", height=340)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.subheader("DuPont 3 bước")
 fig = go.Figure()
@@ -277,14 +277,14 @@ for column, label in (("net_margin", "Net margin"), ("asset_turnover", "Asset tu
     if column in metrics:
         fig.add_trace(go.Bar(x=metrics["period"], y=metrics[column], name=label))
 fig.update_layout(title="Các thành phần DuPont theo kỳ", barmode="group", height=360)
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 st.subheader("Bảng chỉ số và đối chiếu DuPont")
 display_columns = [column for column in (
     "period", "revenue", "net_income", "net_margin", "asset_turnover", "equity_multiplier",
     "roe_direct", "roe_dupont", "roa", "debt_to_equity", "cash_conversion",
 ) if column in metrics.columns]
-st.dataframe(metrics[display_columns], hide_index=True, use_container_width=True)
+st.dataframe(metrics[display_columns], hide_index=True, width="stretch")
 industry_value = latest.get("industry", "")
 industry = "" if pd.isna(industry_value) else str(industry_value).strip()
 if industry and "industry" in data.columns:
@@ -320,7 +320,7 @@ if industry and "industry" in data.columns:
             else f"{row['Trung vị ngành']:.2f}x",
             axis=1,
         )
-        st.dataframe(peer_frame, hide_index=True, use_container_width=True)
+        st.dataframe(peer_frame, hide_index=True, width="stretch")
     else:
         st.info(f"Chưa có dữ liệu đã ánh xạ của mã khác cùng ngành {industry} trong kỳ {latest['period']}.")
 else:

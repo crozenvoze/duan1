@@ -40,7 +40,7 @@ st.caption("Vị thế và kết quả được tính theo giá vốn bình quâ
 
 refresh_col, note_col = st.columns([1, 5])
 with refresh_col:
-    if st.button("Làm mới dữ liệu", use_container_width=True):
+    if st.button("Làm mới dữ liệu", width="stretch"):
         load_journal.clear()
 with note_col:
     st.caption("Dữ liệu được cache tối đa 60 giây; dùng nút làm mới để đọc lại ngay.")
@@ -94,7 +94,7 @@ position_rows = [
     if position["quantity"] > 0
 ]
 if position_rows:
-    st.dataframe(position_rows, hide_index=True, use_container_width=True)
+    st.dataframe(position_rows, hide_index=True, width="stretch")
 else:
     st.write("Hiện không còn vị thế mở.")
 
@@ -120,7 +120,7 @@ with left:
             hovertemplate="Lần bán %{x}<br>P&L cộng dồn %{y:,.0f} VND<extra></extra>",
         ))
         fig.update_layout(xaxis_title="Thứ tự sự kiện bán", yaxis_title="VND", height=350, margin={"t": 20, "b": 30})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("Chưa có lệnh bán để vẽ đường lãi/lỗ.")
 
@@ -136,7 +136,7 @@ with right:
             hovertemplate="%{x}<br>%{y:,.0f} VND<extra></extra>",
         ))
         fig.update_layout(xaxis_title="Sự kiện bán", yaxis_title="VND", height=350, margin={"t": 20, "b": 50})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("Chưa có lệnh bán để vẽ phân bố lãi/lỗ.")
 
@@ -155,7 +155,7 @@ if realized:
         }
         for event in realized
     ]
-    st.dataframe(realized_rows, hide_index=True, use_container_width=True)
+    st.dataframe(realized_rows, hide_index=True, width="stretch")
 
 st.subheader("Phân tích theo chiến lược")
 strategy_rows = [
@@ -170,7 +170,7 @@ strategy_rows = [
     for tag, values in result["by_strategy"].items()
 ]
 if strategy_rows:
-    st.dataframe(strategy_rows, hide_index=True, use_container_width=True)
+    st.dataframe(strategy_rows, hide_index=True, width="stretch")
 else:
     st.write("Chưa có lệnh bán để phân tích chiến lược.")
 

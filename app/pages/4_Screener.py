@@ -81,7 +81,7 @@ except Exception as exc:
 
 st.write(f"Số mã phù hợp: **{len(ranked)}**")
 if not ranked.empty:
-    st.dataframe(ranked, hide_index=True, use_container_width=True)
+    st.dataframe(ranked, hide_index=True, width="stretch")
     st.download_button(
         "Tải kết quả CSV",
         ranked.to_csv(index=False).encode("utf-8-sig"),

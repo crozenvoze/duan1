@@ -34,7 +34,7 @@ positions = pd.DataFrame(
         if position["quantity"] > 0
     ]
 )
-st.dataframe(positions, hide_index=True, use_container_width=True)
+st.dataframe(positions, hide_index=True, width="stretch")
 
 st.subheader("Lãi/lỗ thực hiện cộng dồn")
 curve = pd.DataFrame(result["equity_curve"])
@@ -42,6 +42,6 @@ if not curve.empty:
     figure = px.line(curve, x=curve.index + 1, y="cumulative_realized_pnl", markers=True,
                      labels={"x": "Lần bán", "cumulative_realized_pnl": "VND"})
     figure.update_layout(margin=dict(l=10, r=10, t=20, b=10))
-    st.plotly_chart(figure, use_container_width=True)
+    st.plotly_chart(figure, width="stretch")
 
 st.caption("Giả định: giá vốn bình quân gia quyền; phí bằng 0 trong dữ liệu demo. Xem README để biết phương pháp và hạn chế.")
