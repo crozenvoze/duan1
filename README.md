@@ -85,8 +85,8 @@ The 10-trade hand calculation and expected results are in [`docs/sample_calculat
 
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 - `GOOGLE_SERVICE_ACCOUNT_JSON` (the JSON contents, stored only as a GitHub Secret)
-- `VNSTOCK_SOURCE` (`ssi` or `fhsc`)
-- `SSI_API_KEY` and `SSI_API_SECRET` for `ssi`, or `FHSC_API_KEY` for `fhsc`
+- `VNSTOCK_SOURCE` (`ssi`, `dnse`, or `fhsc`)
+- `SSI_API_KEY` and `SSI_API_SECRET` for `ssi`; `DNSE_API_KEY` and `DNSE_API_SECRET` for `dnse`; or `FHSC_API_KEY` for `fhsc`
 
 The service account needs edit access to the private Sheet. Do not add the credential JSON to the repository or paste it into chat. Vnstock access, provider credentials, quotas, and API behavior depend on the selected provider; the job reports failures by ticker and error type without printing secret values. The schedule is prepared but will not update live prices until those secrets are configured.
 
@@ -94,7 +94,7 @@ The service account needs edit access to the private Sheet. Do not add the crede
 
 The public-safe demo is deployed on Streamlit Community Cloud at [Vietnam Equity Toolkit Demo](https://circfvfs4kbv6qui5ymdn3vietnam-equity-toolkit-demo.streamlit.app/), from `main:demo_app.py`. It uses fictional sample trades only and does not connect to the personal Google Sheet. The full local app is for private use; do not deploy `app/main.py` with credentials to the personal Sheet as a public app. Streamlit Community Cloud accepts app secrets in its settings, but that does not make private trade data safe to expose through a public app. Keep the repository private if it contains any non-demo data or configuration.
 
-For optional Vnstock v6 market data, install `requirements-vnstock-v6.txt` in a separate environment and configure a supported source in `.env` (`VNSTOCK_SOURCE`, plus that source's API key/secret). This file installs Vnstock's current prerelease line, so confirm its official release notes before upgrading; the Vnstock API is not part of the core test suite. The v6 fundamentals page can display source reports, but mapping provider statement IDs into the project's saved canonical Fundamentals schema still requires an explicitly reviewed mapping.
+For optional Vnstock v6 market data, install `requirements-vnstock-v6.txt` in a separate environment and configure a supported source in `.env` (`VNSTOCK_SOURCE`, plus that source's API key/secret). Vnstock v6 currently documents SSI, DNSE, FHSC, and other providers; each has its own account and access terms. This file installs Vnstock's prerelease line, so confirm its official release notes before upgrading; the Vnstock API is not part of the core test suite. The v6 fundamentals page can display source reports, but mapping provider statement IDs into the project's saved canonical Fundamentals schema still requires an explicitly reviewed mapping.
 
 The static form token is present in the browser when a form is served, so it must be treated as public. The local form configuration is ignored by Git. For a public form, add a real access-control layer (for example, authenticated users and server-side authorization) before pointing it at any private Sheet; a token embedded in HTML is not authentication.
 

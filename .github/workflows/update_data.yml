@@ -25,6 +25,8 @@ jobs:
           VNSTOCK_SOURCE: ${{ secrets.VNSTOCK_SOURCE }}
           SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
           SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
+          DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
+          DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
           FHSC_API_KEY: ${{ secrets.FHSC_API_KEY }}
         run: |
           python - <<'PY'
@@ -36,6 +38,7 @@ jobs:
           source = (os.getenv("VNSTOCK_SOURCE") or "").strip().lower()
           source_ready = {
               "ssi": bool(os.getenv("SSI_API_KEY") and os.getenv("SSI_API_SECRET")),
+              "dnse": bool(os.getenv("DNSE_API_KEY") and os.getenv("DNSE_API_SECRET")),
               "fhsc": bool(os.getenv("FHSC_API_KEY")),
           }.get(source, False)
           ready = spreadsheet_id and service_account and source_ready
@@ -71,5 +74,7 @@ jobs:
           VNSTOCK_SOURCE: ${{ secrets.VNSTOCK_SOURCE }}
           SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
           SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
+          DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
+          DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
           FHSC_API_KEY: ${{ secrets.FHSC_API_KEY }}
         run: python -m src.update_data
