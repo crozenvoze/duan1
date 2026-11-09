@@ -41,8 +41,8 @@ def fetch_raw_statements(symbol: str, period: str = "quarter") -> dict[str, pd.D
         from vnstock import Fundamental
     except ImportError as exc:
         raise RuntimeError(
-            "Vnstock chưa được cài. API thế hệ 5 hiện dùng Unified UI; xem hướng dẫn chính thức "
-            "tại https://vnstocks.com/download và kiểm tra điều kiện sử dụng Community."
+            "Chưa cài Vnstock. Với v6, tạo môi trường riêng theo hướng dẫn chính thức tại "
+            "https://www.vnstocks.com/docs/vnstock/v6/cai-dat; API BCTC hiện cần nguồn FHSC."
         ) from exc
 
     from src.config import get_setting
@@ -89,6 +89,8 @@ def calculate_fundamental_row(row: dict[str, Any]) -> dict[str, Any]:
     return {
         **row,
         **dupont,
+        # Schema lưu trữ dùng tên roe; giữ ROE trực tiếp để dễ đối chiếu với VAS.
+        "roe": dupont["roe_direct"],
         "roa": roa(values["net_income"], values["assets_beginning"], values["assets_ending"]),
         "net_margin": net_margin(values["net_income"], values["revenue"]),
         "asset_turnover": asset_turnover(values["revenue"], values["assets_beginning"], values["assets_ending"]),
