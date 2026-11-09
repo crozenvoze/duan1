@@ -90,6 +90,8 @@ The 10-trade hand calculation and expected results are in [`docs/sample_calculat
 
 The service account needs edit access to the private Sheet. Do not add the credential JSON to the repository or paste it into chat. Vnstock access, provider credentials, quotas, and API behavior depend on the selected provider; the job reports failures by ticker and error type without printing secret values. The schedule is prepared but will not update live prices until those secrets are configured.
 
+See [the step-by-step GitHub Secrets guide](docs/github-actions-secrets.md) to enable the workflow without exposing credentials in chat or source control.
+
 ## Deployment and public demos
 
 The public-safe demo is deployed on Streamlit Community Cloud at [Vietnam Equity Toolkit Demo](https://circfvfs4kbv6qui5ymdn3vietnam-equity-toolkit-demo.streamlit.app/), from `main:demo_app.py`. It uses fictional sample trades only and does not connect to the personal Google Sheet. The full local app is for private use; do not deploy `app/main.py` with credentials to the personal Sheet as a public app. Streamlit Community Cloud accepts app secrets in its settings, but that does not make private trade data safe to expose through a public app. Keep the repository private if it contains any non-demo data or configuration.
