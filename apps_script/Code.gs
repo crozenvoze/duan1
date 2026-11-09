@@ -89,6 +89,14 @@ function doPost(e) {
     }
 
     try {
+      // Kiểm tra lại khi đã giữ khóa: hai POST đồng thời cùng request_id có thể
+      // cùng vượt qua lần kiểm tra bên ngoài lock nếu chỉ kiểm tra một lần.
+      const lockedPriorStatus = CacheService.getScriptCache().get('trade_status_' + requestId);
+      if (lockedPriorStatus) {
+        const previous = JSON.parse(lockedPriorStatus);
+        return jsonResponse_(Boolean(previous.success), String(previous.message || 'Yêu cầu đã được xử lý.'));
+      }
+
       if (!consumeRateLimit_()) {
         rememberRequestStatus_(requestId, false, 'Đã vượt giới hạn gửi tạm thời. Vui lòng chờ một phút.');
         return jsonResponse_(false, 'Đã vượt giới hạn gửi tạm thời. Vui lòng chờ một phút.');

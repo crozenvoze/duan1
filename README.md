@@ -59,9 +59,10 @@ Run the hand-calculated example suite:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+node tests/apps_script_smoke.js
 ```
 
-The tests use fictional trades and prices. They do not call Google Sheets or a market-data provider.
+Python tests use fictional trades and prices. The Apps Script smoke suite uses in-memory Google-service fakes; neither suite calls Google Sheets or a market-data provider.
 The 10-trade hand calculation and expected results are in [`docs/sample_calculation.md`](docs/sample_calculation.md).
 
 ## Methodology and assumptions
