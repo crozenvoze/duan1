@@ -102,11 +102,26 @@ def normalize_vnstock_statements(
             if len(debt_values) == len(borrowing_ids):
                 values_by_period.setdefault(str(report_period).strip(), {})["total_borrowings"] = float(debt_values.sum())
 
+    def canonical_period(value: str) -> str:
+        """Chuẩn hóa kỳ Vnstock như 2025Q1 và 2025-Q1 thành một khóa chung."""
+        text = value.upper().replace(" ", "")
+        quarter_match = re.fullmatch(r"(\d{4})[-_/]?Q([1-4])", text)
+        if quarter_match:
+            return f"{quarter_match.group(1)}-Q{quarter_match.group(2)}"
+        year_match = re.fullmatch(r"(\d{4})(?:[-_/]?FY)?", text)
+        return year_match.group(1) if year_match else value.strip()
+
+    # Chuẩn hóa nhãn kỳ trước khi tra số dư đầu kỳ, vì Vnstock có thể trả
+    # 2025Q1, 2025-Q1 hoặc 2025_Q1 tùy nguồn và phiên bản.
+    canonical_values: dict[str, dict[str, float]] = {}
+    for period, period_values in values_by_period.items():
+        canonical_values.setdefault(canonical_period(period), {}).update(period_values)
+    values_by_period = canonical_values
     periods = sorted(values_by_period)
 
     def prior_period(value: str) -> str | None:
         text = value.upper().replace(" ", "")
-        match = re.fullmatch(r"(\d{4})-Q([1-4])", text)
+        match = re.fullmatch(r"(\d{4})[-_/]?Q([1-4])", text)
         if match and period_type == "quarter":
             year, quarter = int(match.group(1)), int(match.group(2))
             return f"{year}-Q{quarter - 1}" if quarter > 1 else f"{year - 1}-Q4"

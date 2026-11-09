@@ -66,15 +66,15 @@ class FundamentalsTests(unittest.TestCase):
         income = [
             {"period": period, "id": key, "value": value}
             for period, values in {
-                "2024-Q4": {"IS_NET_REVENUE": 90, "IS_GROSS_PROFIT": 30, "IS_NET_PROFIT_AFTER_TAX": 8},
-                "2025-Q1": {"IS_NET_REVENUE": 100, "IS_GROSS_PROFIT": 40, "IS_NET_PROFIT_AFTER_TAX": 10},
+                "2024Q4": {"IS_NET_REVENUE": 90, "IS_GROSS_PROFIT": 30, "IS_NET_PROFIT_AFTER_TAX": 8},
+                "2025Q1": {"IS_NET_REVENUE": 100, "IS_GROSS_PROFIT": 40, "IS_NET_PROFIT_AFTER_TAX": 10},
             }.items() for key, value in values.items()
         ]
         balance = [
             {"period": period, "id": key, "value": value}
             for period, values in {
-                "2024-Q4": {"BS_TOTAL_ASSETS": 90, "BS_OWNER_EQUITY": 45, "BS_SHORT_TERM_RECEIVABLES": 20, "BS_DEBT_SHORT": 10, "BS_DEBT_LONG": 5},
-                "2025-Q1": {"BS_TOTAL_ASSETS": 110, "BS_OWNER_EQUITY": 55, "BS_SHORT_TERM_RECEIVABLES": 25, "BS_DEBT_SHORT": 12, "BS_DEBT_LONG": 6},
+                "2024Q4": {"BS_TOTAL_ASSETS": 90, "BS_OWNER_EQUITY": 45, "BS_SHORT_TERM_RECEIVABLES": 20, "BS_DEBT_SHORT": 10, "BS_DEBT_LONG": 5},
+                "2025Q1": {"BS_TOTAL_ASSETS": 110, "BS_OWNER_EQUITY": 55, "BS_SHORT_TERM_RECEIVABLES": 25, "BS_DEBT_SHORT": 12, "BS_DEBT_LONG": 6},
             }.items() for key, value in values.items()
         ]
         cash_flow = [
