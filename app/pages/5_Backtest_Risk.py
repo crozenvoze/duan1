@@ -1,6 +1,6 @@
 """Trang thử nghiệm chiến lược MA/RSI, Markowitz và VaR/CVaR."""
 
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 import sys
 
@@ -16,6 +16,7 @@ from src.backtest import STANDARD_PRICE_LIMITS, efficient_frontier, fee_sensitiv
 from src.journal import read_and_calculate
 from src.market_data import fetch_history, fetch_index_history
 from src.sheets import read_trades
+from src.timeutils import vietnam_today
 
 st.set_page_config(page_title="Backtest & Risk", page_icon="⚖️", layout="wide")
 
@@ -31,7 +32,7 @@ st.caption("Mô phỏng học tập; kết quả phụ thuộc chất lượng d
 
 with st.sidebar:
     symbol = st.text_input("Mã cổ phiếu", value="FPT", max_chars=3).strip().upper()
-    end_date = st.date_input("Ngày kết thúc", value=date.today())
+    end_date = st.date_input("Ngày kết thúc", value=vietnam_today())
     start_date = st.date_input("Ngày bắt đầu", value=end_date - timedelta(days=730))
     strategy = st.selectbox("Chiến lược", ["ma_cross", "rsi"], format_func=lambda value: "MA crossover" if value == "ma_cross" else "RSI")
     exchange = st.selectbox("Sàn giao dịch", ["HOSE", "HNX", "UPCOM"])
@@ -126,7 +127,7 @@ if st.button("Tính VaR/CVaR"):
         if not holdings:
             st.error("Trading Journal chưa có vị thế mở để tính VaR/CVaR.")
         else:
-            end = date.today()
+            end = vietnam_today()
             start = end - timedelta(days=400)
             returns = []
             market_values = {}
@@ -154,7 +155,7 @@ max_weight = st.slider("Tỷ trọng tối đa mỗi mã", min_value=0.2, max_va
 if st.button("Tối ưu danh mục"):
     symbols = list(dict.fromkeys(item.strip().upper() for item in markowitz_symbols.split(",") if item.strip()))
     try:
-        end = date.today()
+        end = vietnam_today()
         start = end - timedelta(days=730)
         daily_returns = []
         for ticker in symbols:

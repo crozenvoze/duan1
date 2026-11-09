@@ -6,11 +6,14 @@ nguồn dữ liệu thị trường. API Unified UI v4+ dùng Market().equity.oh
 
 from __future__ import annotations
 
+from datetime import timedelta
 import time
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
 import pandas as pd
+
+from src.timeutils import vietnam_today
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CACHE_DIR = PROJECT_ROOT / ".cache" / "market_data"
@@ -161,8 +164,10 @@ def get_current_price(symbol: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    end = pd.Timestamp.now().strftime("%Y-%m-%d")
-    start = (pd.Timestamp.now() - pd.Timedelta(days=10)).strftime("%Y-%m-%d")
+    end_date = vietnam_today()
+    start_date = end_date - timedelta(days=10)
+    end = end_date.isoformat()
+    start = start_date.isoformat()
     history = fetch_history(ticker, start, end)
     if history.empty:
         raise RuntimeError(f"Không có giá gần nhất cho mã {ticker}.")

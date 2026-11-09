@@ -1,6 +1,6 @@
 """Trang watchlist: giá, hiệu suất theo kỳ, thanh khoản và cảnh báo ngưỡng."""
 
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 import sys
 
@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.market_data import fetch_history, get_current_price
 from src.sheets import read_worksheet
+from src.timeutils import vietnam_today
 from src.watchlist import price_change_from_sessions, threshold_alert, volume_vs_previous_sessions
 
 st.set_page_config(page_title="Watchlist", page_icon="👀", layout="wide")
@@ -90,7 +91,7 @@ try:
     if not items:
         st.info("Tab Watchlist chưa có mã. Tạo hàng tiêu đề: ticker, alert_above, alert_below, note.")
         st.stop()
-    end_date = date.today()
+    end_date = vietnam_today()
     start_date = end_date - timedelta(days=60)
     output = []
     errors = []
