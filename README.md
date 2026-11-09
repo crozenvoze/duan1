@@ -6,6 +6,8 @@ A personal research workspace for Vietnamese equities. It combines a Google Shee
 
 See the [repository security review](docs/security-review.md) for the latest scoped scan and its limitations.
 
+For a hand-worked explanation of the 10 fictional trades used to validate journal metrics, see [Trading Journal example calculations](docs/trading-journal-example.md). Keep these sample trades out of the personal `Trades` sheet.
+
 ## What it contains
 
 | Area | Purpose | Current data source |
