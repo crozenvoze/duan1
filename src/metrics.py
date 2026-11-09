@@ -144,3 +144,42 @@ def dupont_roe(net_income: float, revenue: float, assets_beginning: float,
     product = None if None in (margin, turnover, multiplier) else margin * turnover * multiplier
     return {"net_margin": margin, "asset_turnover": turnover,
             "equity_multiplier": multiplier, "roe_direct": direct_roe, "roe_dupont": product}
+
+
+def bank_ratios(
+    *,
+    net_interest_income_ttm: float | None,
+    average_interest_earning_assets: float | None,
+    operating_expenses: float | None,
+    operating_income: float | None,
+    non_performing_loans: float | None,
+    gross_customer_loans: float | None,
+    demand_deposits: float | None,
+    margin_escrow_deposits: float | None,
+    dedicated_deposits: float | None,
+    customer_deposits: float | None,
+    credit_loss_provision_ttm: float | None,
+    average_gross_customer_loans: float | None,
+) -> dict[str, float | None]:
+    """Tính nhóm chỉ số ngân hàng từ số liệu BCTC và thuyết minh đã đối chiếu.
+
+    NIM = thu nhập lãi thuần TTM / tài sản sinh lãi bình quân. CIR = trị tuyệt
+    đối chi phí hoạt động / tổng thu nhập hoạt động. NPL = nợ nhóm 3–5 / dư nợ
+    gộp. LDR phân tích = dư nợ gộp / tiền gửi khách hàng (không phải tỷ lệ pháp
+    định của NHNN). CASA = (tiền gửi không kỳ hạn + ký quỹ + vốn chuyên dùng) /
+    tiền gửi khách hàng. Provision/loans
+    = trị tuyệt đối chi phí dự phòng TTM / dư nợ gộp bình quân. Trả None khi
+    thiếu dữ liệu hoặc mẫu số bằng 0.
+    """
+    return {
+        "nim": _divide(net_interest_income_ttm, average_interest_earning_assets),
+        "cir": _divide(abs(operating_expenses), operating_income) if operating_expenses is not None else None,
+        "npl": _divide(non_performing_loans, gross_customer_loans),
+        "ldr": _divide(gross_customer_loans, customer_deposits),
+        "casa": _divide(
+            demand_deposits + margin_escrow_deposits + dedicated_deposits,
+            customer_deposits,
+        ) if None not in (demand_deposits, margin_escrow_deposits, dedicated_deposits) else None,
+        "provision_to_loans": _divide(abs(credit_loss_provision_ttm), average_gross_customer_loans)
+        if credit_loss_provision_ttm is not None else None,
+    }

@@ -20,6 +20,7 @@ from src.fundamentals import (
     read_fundamentals,
     write_fundamentals,
 )
+from src.metrics import bank_ratios
 
 st.set_page_config(page_title="Fundamentals", page_icon="📊", layout="wide")
 
@@ -38,6 +39,69 @@ try:
 except Exception:
     st.error("Không đọc được tab Fundamentals. Kiểm tra kết nối Google Sheets.")
     st.stop()
+
+with st.expander("Phân tích riêng ngân hàng"):
+    st.caption(
+        "Nhập số liệu đã đối chiếu từ BCTC và thuyết minh. Các khoản mục nợ xấu, CASA và tài sản sinh lãi "
+        "có thể cần thuyết minh; ô trống được để là chưa đủ dữ liệu."
+    )
+    with st.form("bank_ratio_form"):
+        left, right = st.columns(2)
+        with left:
+            bank_symbol = st.text_input("Mã ngân hàng", max_chars=3, placeholder="VCB").strip().upper()
+            nii_ttm = st.text_input("Thu nhập lãi thuần TTM (VND)", placeholder="Ví dụ: 50000000000")
+            earning_assets = st.text_input("Tài sản sinh lãi bình quân (VND)", placeholder="Bình quân theo kỳ")
+            operating_expenses = st.text_input("Chi phí hoạt động (VND)", placeholder="Có thể nhập số âm")
+            operating_income = st.text_input("Tổng thu nhập hoạt động (VND)")
+            npl_balance = st.text_input("Nợ nhóm 3–5 (VND)")
+        with right:
+            gross_loans = st.text_input("Dư nợ cho vay gộp (VND)")
+            demand_deposits = st.text_input("Tiền gửi không kỳ hạn (VND)")
+            escrow_deposits = st.text_input("Tiền ký quỹ (VND)")
+            dedicated_deposits = st.text_input("Vốn chuyên dùng (VND)")
+            customer_deposits = st.text_input("Tiền gửi khách hàng (VND)")
+            provision_ttm = st.text_input("Chi phí dự phòng tín dụng TTM (VND)", placeholder="Có thể nhập số âm")
+            average_gross_loans = st.text_input("Dư nợ cho vay gộp bình quân (VND)")
+        submitted = st.form_submit_button("Tính chỉ số ngân hàng")
+    if submitted:
+        if len(bank_symbol) != 3 or not bank_symbol.isalpha():
+            st.error("Nhập mã ngân hàng gồm đúng 3 chữ cái.")
+        else:
+            def parse_amount(value: str) -> float | None:
+                if not value.strip():
+                    return None
+                return float(value.replace(",", "").replace(" ", ""))
+
+            try:
+                bank_values = bank_ratios(
+                    net_interest_income_ttm=parse_amount(nii_ttm),
+                    average_interest_earning_assets=parse_amount(earning_assets),
+                    operating_expenses=parse_amount(operating_expenses),
+                    operating_income=parse_amount(operating_income),
+                    non_performing_loans=parse_amount(npl_balance),
+                    gross_customer_loans=parse_amount(gross_loans),
+                    demand_deposits=parse_amount(demand_deposits),
+                    margin_escrow_deposits=parse_amount(escrow_deposits),
+                    dedicated_deposits=parse_amount(dedicated_deposits),
+                    customer_deposits=parse_amount(customer_deposits),
+                    credit_loss_provision_ttm=parse_amount(provision_ttm),
+                    average_gross_customer_loans=parse_amount(average_gross_loans),
+                )
+                st.markdown(f"**{bank_symbol} · Chỉ số ngân hàng**")
+                labels = (
+                    ("nim", "NIM"), ("cir", "CIR"), ("npl", "NPL"),
+                    ("ldr", "LDR phân tích"), ("casa", "CASA"), ("provision_to_loans", "Dự phòng / dư nợ"),
+                )
+                columns = st.columns(len(labels))
+                for column, (key, label) in zip(columns, labels):
+                    value = bank_values[key]
+                    column.metric(label, "—" if value is None else f"{value:.2%}")
+                st.caption(
+                    "CIR và tỷ lệ dự phòng hiển thị dạng dương bằng trị tuyệt đối chi phí. "
+                    "LDR ở đây là dư nợ gộp / tiền gửi khách hàng, không phải tỷ lệ quy định của NHNN."
+                )
+            except ValueError:
+                st.error("Các số tiền chỉ được chứa chữ số, dấu âm và dấu phẩy phân tách hàng nghìn.")
 
 with st.expander("Lấy, ánh xạ và lưu BCTC Vnstock", expanded=data.empty):
     st.caption(

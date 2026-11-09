@@ -5,6 +5,7 @@ import unittest
 
 from src.metrics import (
     asset_turnover,
+    bank_ratios,
     cash_conversion,
     cagr,
     debt_to_equity,
@@ -56,6 +57,45 @@ class MetricsTests(unittest.TestCase):
         self.assertIsNone(debt_to_equity(1, 0))
         self.assertIsNone(cash_conversion(1, 0))
         self.assertIsNone(cagr(0, 10, 2))
+
+    def test_bank_ratios_use_bank_specific_definitions(self):
+        ratios = bank_ratios(
+            net_interest_income_ttm=1_200_000_000,
+            average_interest_earning_assets=100_000_000_000,
+            operating_expenses=-300_000_000,
+            operating_income=1_000_000_000,
+            non_performing_loans=2_000_000_000,
+            gross_customer_loans=100_000_000_000,
+            demand_deposits=25_000_000_000,
+            margin_escrow_deposits=2_000_000_000,
+            dedicated_deposits=3_000_000_000,
+            customer_deposits=125_000_000_000,
+            credit_loss_provision_ttm=-500_000_000,
+            average_gross_customer_loans=100_000_000_000,
+        )
+        self.assertAlmostEqual(ratios["nim"], 0.012)
+        self.assertAlmostEqual(ratios["cir"], 0.30)
+        self.assertAlmostEqual(ratios["npl"], 0.02)
+        self.assertAlmostEqual(ratios["ldr"], 0.80)
+        self.assertAlmostEqual(ratios["casa"], 0.24)
+        self.assertAlmostEqual(ratios["provision_to_loans"], 0.005)
+
+    def test_bank_casa_stays_missing_when_note_inputs_are_missing(self):
+        ratios = bank_ratios(
+            net_interest_income_ttm=100,
+            average_interest_earning_assets=1000,
+            operating_expenses=10,
+            operating_income=100,
+            non_performing_loans=1,
+            gross_customer_loans=100,
+            demand_deposits=10,
+            margin_escrow_deposits=None,
+            dedicated_deposits=None,
+            customer_deposits=100,
+            credit_loss_provision_ttm=1,
+            average_gross_customer_loans=100,
+        )
+        self.assertIsNone(ratios["casa"])
 
 
 if __name__ == "__main__":
