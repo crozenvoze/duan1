@@ -40,4 +40,10 @@ All figures below are fictional; prices are VND per share and each quantity is 1
 | Expectancy per sell event | `50% × 1,312.50 − 50% × 562.50 = 375 VND` |
 | Maximum drawdown of cumulative realized P&L | 750 VND (50% of the 1,500 VND peak) |
 
-The journal groups each sell as one observation. This is a transparent event-based approximation; a partial sell can differ from treating the investor's entire thesis as one completed trade.
+Sell-event statistics group each sell as one observation. A partial sell can differ from treating the investor's entire thesis as one completed trade, so the dashboard also reports completed-position-cycle statistics separately.
+
+## Completed-position-cycle statistics
+
+The dashboard also follows the specification's completed-trade definition: one cycle starts with the first BUY after a zero position and ends only when the ticker's position returns to zero. Adding to a position and partial sells stay inside the same cycle. Open positions are excluded from completed-cycle win rate and expectancy.
+
+In this sample, S01–S08 form one completed FPT cycle. Its realized P&L is `+1,500 VND`, so the completed-cycle win rate is `1 / 1 = 100%`, average win and expectancy are `1,500 VND`, and profit factor is infinite because there are no losing completed cycles. Risk amounts recorded by the four sell events are 1,000, 750, 875, and 875 VND; cycle R-multiple is `1,500 / 3,500 = 0.43R` (rounded). MWG remains open after S10 and is excluded. The separate sell-event view still reports 4 sell events, a 50% win rate, profit factor `2.3333`, and expectancy `375 VND` per sell event. These two views answer different questions and are labeled separately in the dashboard.

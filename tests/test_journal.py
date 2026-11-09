@@ -32,6 +32,43 @@ class JournalTests(unittest.TestCase):
         self.assertEqual(result["positions"]["MWG"]["quantity"], 200)
         self.assertAlmostEqual(result["positions"]["MWG"]["average_cost"], 55)
         self.assertEqual(summary["r_multiple_count"], 4)
+        self.assertEqual(summary["closed_trade_count"], 1)
+        self.assertAlmostEqual(summary["closed_trade_realized_pnl"], 1500)
+        self.assertAlmostEqual(summary["closed_trade_win_rate"], 1.0)
+        self.assertAlmostEqual(summary["closed_trade_expectancy"], 1500)
+        self.assertAlmostEqual(result["closed_trades"][0]["r_multiple"], 1500 / 3500)
+        self.assertEqual(result["closed_trades"][0]["ticker"], "FPT")
+        self.assertEqual(result["closed_trades"][0]["buy_events"], 4)
+        self.assertEqual(result["closed_trades"][0]["sell_events"], 4)
+
+    def test_closed_trade_metrics_combine_full_position_cycles(self):
+        trades = [
+            {"trade_id": "B1", "trade_date": "2026-01-01", "ticker": "FPT", "side": "BUY", "price": 100, "quantity": 100, "fee": 0},
+            {"trade_id": "S1", "trade_date": "2026-01-02", "ticker": "FPT", "side": "SELL", "price": 110, "quantity": 100, "fee": 0},
+            {"trade_id": "B2", "trade_date": "2026-01-03", "ticker": "MWG", "side": "BUY", "price": 100, "quantity": 100, "fee": 0},
+            {"trade_id": "S2", "trade_date": "2026-01-04", "ticker": "MWG", "side": "SELL", "price": 95, "quantity": 100, "fee": 0},
+        ]
+        result = calculate_journal(trades)
+        summary = result["summary"]
+
+        self.assertEqual(summary["closed_trade_count"], 2)
+        self.assertAlmostEqual(summary["closed_trade_win_rate"], 0.5)
+        self.assertAlmostEqual(summary["closed_trade_average_win"], 1000)
+        self.assertAlmostEqual(summary["closed_trade_average_loss"], 500)
+        self.assertAlmostEqual(summary["closed_trade_profit_factor"], 2.0)
+        self.assertAlmostEqual(summary["closed_trade_expectancy"], 250)
+        self.assertAlmostEqual(summary["closed_trade_max_drawdown_amount"], 500)
+
+    def test_partial_sell_does_not_close_trade_cycle(self):
+        trades = [
+            {"trade_id": "B1", "trade_date": "2026-01-01", "ticker": "FPT", "side": "BUY", "price": 100, "quantity": 100, "fee": 0},
+            {"trade_id": "S1", "trade_date": "2026-01-02", "ticker": "FPT", "side": "SELL", "price": 110, "quantity": 50, "fee": 0},
+        ]
+        result = calculate_journal(trades)
+
+        self.assertEqual(result["summary"]["closed_trade_count"], 0)
+        self.assertEqual(result["closed_trades"], [])
+        self.assertEqual(result["positions"]["FPT"]["quantity"], 50)
 
     def test_rejects_oversell(self):
         trades = [
@@ -51,6 +88,9 @@ class JournalTests(unittest.TestCase):
         self.assertAlmostEqual(result["realized_events"][0]["r_multiple"], 1.0)
         self.assertAlmostEqual(result["realized_events"][1]["r_multiple"], -2.0)
         self.assertEqual(result["summary"]["r_multiple_count"], 2)
+        self.assertAlmostEqual(result["closed_trades"][0]["r_multiple"], -0.5)
+        self.assertEqual(result["summary"]["closed_trade_r_multiple_count"], 1)
+        self.assertAlmostEqual(result["summary"]["closed_trade_average_r_multiple"], -0.5)
 
     def test_backfilled_trades_sort_by_execution_date_not_entry_timestamp(self):
         trades = [

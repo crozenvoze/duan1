@@ -113,16 +113,19 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
     """Tính vị thế, lãi/lỗ đã thực hiện và thống kê từ danh sách lệnh.
 
     Giá vốn bình quân gồm phí BUY phân bổ vào giá vốn. Phí SELL được trừ khỏi
-    lãi/lỗ thực hiện. Mỗi lần SELL là một sự kiện để tính win rate/expectancy;
-    stop loss từ các lần BUY tạo risk basis được phân bổ bình quân theo số cổ phiếu
-    còn giữ; stop loss trên dòng SELL chỉ dùng cho dữ liệu cũ chưa có risk basis.
-    Drawdown tính trên P&L cộng dồn từ 0, không phải NAV có tiền mặt và giá thị trường.
+    lãi/lỗ thực hiện. Thống kê theo lần SELL xem mỗi lần bán là một sự kiện; thống
+    kê giao dịch đã đóng gộp từ BUY đầu tiên đến khi vị thế mã đó về 0. Stop loss
+    từ các lần BUY tạo risk basis được phân bổ bình quân theo số cổ phiếu còn giữ;
+    stop loss trên dòng SELL chỉ dùng cho dữ liệu cũ chưa có risk basis. Drawdown
+    tính trên P&L cộng dồn từ 0, không phải NAV có tiền mặt và giá thị trường.
     """
     clean = [_clean_trade(trade, i) for i, trade in enumerate(trades)]
     clean.sort(key=lambda trade: trade["_sort"])
 
     positions: dict[str, dict[str, float | int]] = {}
     realized: list[dict[str, Any]] = []
+    active_cycles: dict[str, dict[str, Any]] = {}
+    closed_trades: list[dict[str, Any]] = []
 
     for trade in clean:
         ticker = trade["ticker"]
@@ -134,6 +137,24 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
         fee = float(trade["fee"])
 
         if trade["side"] == "BUY":
+            if int(position["quantity"]) == 0:
+                active_cycles[ticker] = {
+                    "ticker": ticker,
+                    "entry_date": trade.get("trade_date") or trade.get("timestamp", ""),
+                    "buy_events": 0,
+                    "sell_events": 0,
+                    "shares_bought": 0,
+                    "shares_sold": 0,
+                    "realized_pnl": 0.0,
+                    "risk_amount": 0.0,
+                    "trade_ids": [],
+                    "strategy_tags": set(),
+                }
+            cycle = active_cycles[ticker]
+            cycle["buy_events"] += 1
+            cycle["shares_bought"] += quantity
+            cycle["trade_ids"].append(trade["trade_id"])
+            cycle["strategy_tags"].add(trade["strategy_tag"])
             position["quantity"] = int(position["quantity"]) + quantity
             position["cost_basis"] = float(position["cost_basis"]) + price * quantity + fee
             if trade["stop_loss"] is not None:
@@ -153,15 +174,18 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
         allocated_cost = average_cost * quantity
         pnl = (price * quantity) - allocated_cost - fee
         r_multiple = None
+        risk_amount = 0.0
         stop_loss = trade["stop_loss"]
         risk_basis = float(position["risk_basis"])
         allocated_risk = risk_basis * quantity / held if held else 0.0
         if allocated_risk > 0:
+            risk_amount = allocated_risk
             r_multiple = pnl / allocated_risk
         elif stop_loss is not None:
             # Tương thích dữ liệu cũ ghi stop loss trên dòng BÁN thay vì MUA.
             initial_risk = abs(average_cost - float(stop_loss)) * quantity
             if initial_risk > 0:
+                risk_amount = initial_risk
                 r_multiple = pnl / initial_risk
 
         realized.append({
@@ -174,11 +198,35 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "fee": fee,
             "realized_pnl": pnl,
             "r_multiple": r_multiple,
+            "risk_amount": risk_amount,
             "strategy_tag": trade["strategy_tag"],
         })
+        cycle = active_cycles[ticker]
+        cycle["sell_events"] += 1
+        cycle["shares_sold"] += quantity
+        cycle["realized_pnl"] += pnl
+        cycle["risk_amount"] += risk_amount
+        cycle["trade_ids"].append(trade["trade_id"])
+        cycle["strategy_tags"].add(trade["strategy_tag"])
         position["quantity"] = held - quantity
         position["cost_basis"] = max(0.0, float(position["cost_basis"]) - allocated_cost)
         position["risk_basis"] = max(0.0, risk_basis - allocated_risk)
+        if int(position["quantity"]) == 0:
+            closed_trades.append({
+                "ticker": ticker,
+                "entry_date": cycle["entry_date"],
+                "exit_date": trade.get("trade_date") or trade.get("timestamp", ""),
+                "buy_events": cycle["buy_events"],
+                "sell_events": cycle["sell_events"],
+                "shares_bought": cycle["shares_bought"],
+                "shares_sold": cycle["shares_sold"],
+                "realized_pnl": cycle["realized_pnl"],
+                "risk_amount": cycle["risk_amount"],
+                "r_multiple": cycle["realized_pnl"] / cycle["risk_amount"] if cycle["risk_amount"] > 0 else None,
+                "trade_ids": list(cycle["trade_ids"]),
+                "strategy_tags": sorted(cycle["strategy_tags"]),
+            })
+            del active_cycles[ticker]
 
     positions_result = {
         ticker: {
@@ -233,9 +281,32 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
         summary["win_rate"] = summary["wins"] / summary["events"] if summary["events"] else 0.0
 
     r_values = [event["r_multiple"] for event in realized if event["r_multiple"] is not None]
+    closed_wins = [trade["realized_pnl"] for trade in closed_trades if trade["realized_pnl"] > 0]
+    closed_losses = [trade["realized_pnl"] for trade in closed_trades if trade["realized_pnl"] < 0]
+    closed_count = len(closed_trades)
+    closed_win_rate = len(closed_wins) / closed_count if closed_count else 0.0
+    closed_loss_rate = len(closed_losses) / closed_count if closed_count else 0.0
+    closed_average_win = sum(closed_wins) / len(closed_wins) if closed_wins else 0.0
+    closed_average_loss = abs(sum(closed_losses) / len(closed_losses)) if closed_losses else 0.0
+    closed_total_loss = abs(sum(closed_losses))
+    closed_r_values = [trade["r_multiple"] for trade in closed_trades if trade["r_multiple"] is not None]
+    closed_cumulative = 0.0
+    closed_peak = 0.0
+    closed_max_drawdown = 0.0
+    closed_max_drawdown_pct: float | None = None
+    for trade in closed_trades:
+        closed_cumulative += trade["realized_pnl"]
+        closed_peak = max(closed_peak, closed_cumulative)
+        drawdown = closed_peak - closed_cumulative
+        closed_max_drawdown = max(closed_max_drawdown, drawdown)
+        if closed_peak > 0:
+            percentage = drawdown / closed_peak
+            if closed_max_drawdown_pct is None or percentage > closed_max_drawdown_pct:
+                closed_max_drawdown_pct = percentage
     return {
         "positions": positions_result,
         "realized_events": realized,
+        "closed_trades": closed_trades,
         "summary": {
             "realized_pnl": sum(event["realized_pnl"] for event in realized),
             "closed_sell_events": event_count,
@@ -248,6 +319,17 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "r_multiple_count": len(r_values),
             "max_drawdown_amount": max_drawdown,
             "max_drawdown_pct": max_drawdown_pct,
+            "closed_trade_count": closed_count,
+            "closed_trade_win_rate": closed_win_rate,
+            "closed_trade_average_win": closed_average_win,
+            "closed_trade_average_loss": closed_average_loss,
+            "closed_trade_profit_factor": sum(closed_wins) / closed_total_loss if closed_total_loss > 0 else (inf if closed_wins else None),
+            "closed_trade_expectancy": closed_win_rate * closed_average_win - closed_loss_rate * closed_average_loss,
+            "closed_trade_average_r_multiple": sum(closed_r_values) / len(closed_r_values) if closed_r_values else None,
+            "closed_trade_r_multiple_count": len(closed_r_values),
+            "closed_trade_realized_pnl": sum(trade["realized_pnl"] for trade in closed_trades),
+            "closed_trade_max_drawdown_amount": closed_max_drawdown,
+            "closed_trade_max_drawdown_pct": closed_max_drawdown_pct,
         },
         "equity_curve": equity_curve,
         "by_strategy": dict(by_strategy),

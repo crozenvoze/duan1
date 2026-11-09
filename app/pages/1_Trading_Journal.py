@@ -65,22 +65,33 @@ if not positions and not realized:
     st.info("Chưa có giao dịch trong tab Trades. Thêm giao dịch rồi bấm Làm mới dữ liệu.")
     st.stop()
 
-profit_factor = summary["profit_factor"]
-profit_factor_text = "∞" if profit_factor is not None and isinf(profit_factor) else (
-    "—" if profit_factor is None else f"{profit_factor:.2f}"
+closed_pf = summary["closed_trade_profit_factor"]
+closed_pf_text = "∞" if closed_pf is not None and isinf(closed_pf) else (
+    "—" if closed_pf is None else f"{closed_pf:.2f}"
 )
-
 metric1, metric2, metric3, metric4 = st.columns(4)
 metric1.metric("Lãi/lỗ đã thực hiện", format_vnd(summary["realized_pnl"]))
-metric2.metric("Win rate", format_percent(summary["win_rate"]))
-metric3.metric("Profit factor", profit_factor_text)
-metric4.metric("Expectancy / lần bán", format_vnd(summary["expectancy"]))
+metric2.metric("Vị thế đã đóng", f"{summary['closed_trade_count']:,}")
+metric3.metric("Win rate / vị thế đóng", format_percent(summary["closed_trade_win_rate"]))
+metric4.metric("Profit factor / vị thế đóng", closed_pf_text)
 
 metric5, metric6, metric7, metric8 = st.columns(4)
-metric5.metric("Sự kiện bán", f"{summary['closed_sell_events']:,}")
-metric6.metric("Lãi trung bình", format_vnd(summary["average_win"]))
-metric7.metric("Lỗ trung bình", format_vnd(summary["average_loss"]))
-metric8.metric("R-multiple trung bình", "—" if summary["average_r_multiple"] is None else f"{summary['average_r_multiple']:.2f}R")
+metric5.metric("Expectancy / vị thế đóng", format_vnd(summary["closed_trade_expectancy"]))
+metric6.metric("Lãi trung bình / vị thế", format_vnd(summary["closed_trade_average_win"]))
+metric7.metric("Lỗ trung bình / vị thế", format_vnd(summary["closed_trade_average_loss"]))
+metric8.metric("Max drawdown / vị thế đóng", format_vnd(summary["closed_trade_max_drawdown_amount"]))
+
+with st.expander("Thống kê theo từng lần bán (bao gồm cả bán một phần)"):
+    event_pf = summary["profit_factor"]
+    event_pf_text = "∞" if event_pf is not None and isinf(event_pf) else (
+        "—" if event_pf is None else f"{event_pf:.2f}"
+    )
+    event1, event2, event3, event4 = st.columns(4)
+    event1.metric("Sự kiện bán", f"{summary['closed_sell_events']:,}")
+    event2.metric("Win rate / lần bán", format_percent(summary["win_rate"]))
+    event3.metric("Profit factor / lần bán", event_pf_text)
+    event4.metric("Expectancy / lần bán", format_vnd(summary["expectancy"]))
+    st.caption("Các số liệu này xem mỗi lần bán là một sự kiện riêng; chúng có thể khác thống kê theo toàn bộ chu kỳ vị thế ở phía trên.")
 
 st.subheader("Vị thế hiện tại")
 position_rows = [
@@ -99,10 +110,11 @@ else:
     st.write("Hiện không còn vị thế mở.")
 
 st.subheader("Lãi/lỗ và rủi ro")
-risk1, risk2, risk3 = st.columns(3)
-risk1.metric("Max drawdown", format_vnd(summary["max_drawdown_amount"]))
-risk2.metric("Max drawdown theo đỉnh", format_percent(summary["max_drawdown_pct"]))
-risk3.metric("Giao dịch có R-multiple", f"{summary['r_multiple_count']:,}")
+risk1, risk2, risk3, risk4 = st.columns(4)
+risk1.metric("Max drawdown / lần bán", format_vnd(summary["max_drawdown_amount"]))
+risk2.metric("Tỷ lệ drawdown / lần bán", format_percent(summary["max_drawdown_pct"]))
+risk3.metric("R-multiple TB / lần bán", "—" if summary["average_r_multiple"] is None else f"{summary['average_r_multiple']:.2f}R")
+risk4.metric("R-multiple TB / chu kỳ đóng", "—" if summary["closed_trade_average_r_multiple"] is None else f"{summary['closed_trade_average_r_multiple']:.2f}R")
 st.caption("Drawdown được tính trên lãi/lỗ đã thực hiện cộng dồn từ 0; chưa gồm tiền mặt, lãi/lỗ chưa thực hiện hoặc dòng tiền nạp/rút.")
 
 left, right = st.columns(2)
@@ -157,6 +169,25 @@ if realized:
     ]
     st.dataframe(realized_rows, hide_index=True, width="stretch")
 
+st.subheader("Các chu kỳ vị thế đã đóng")
+if result["closed_trades"]:
+    closed_rows = [
+        {
+            "Mã": trade["ticker"],
+            "Ngày mở": trade["entry_date"] or "—",
+            "Ngày đóng": trade["exit_date"] or "—",
+            "Số lệnh mua/bán": f"{trade['buy_events']}/{trade['sell_events']}",
+            "Khối lượng mua/bán": f"{trade['shares_bought']:,}/{trade['shares_sold']:,}",
+            "Lãi/lỗ toàn chu kỳ": format_vnd(trade["realized_pnl"]),
+            "R-multiple": "—" if trade["r_multiple"] is None else f"{trade['r_multiple']:.2f}R",
+            "Chiến lược": ", ".join(trade["strategy_tags"]) or "Chưa gắn nhãn",
+        }
+        for trade in result["closed_trades"]
+    ]
+    st.dataframe(closed_rows, hide_index=True, width="stretch")
+else:
+    st.info("Chưa có vị thế nào được đóng hoàn toàn. Bán một phần chưa tạo thành giao dịch đóng.")
+
 st.subheader("Phân tích theo chiến lược")
 strategy_rows = [
     {
@@ -179,10 +210,11 @@ with st.expander("Định nghĩa và giả định"):
         """
         - **Giá vốn bình quân:** tổng giá mua cộng phí mua, chia tổng số cổ phiếu đang giữ.
         - **Lãi/lỗ đã thực hiện:** giá bán × khối lượng − giá vốn phân bổ − phí bán.
-        - **Win rate:** số sự kiện bán có lãi / tổng sự kiện bán có lãi hoặc lỗ.
-        - **Profit factor:** tổng lãi / trị tuyệt đối tổng lỗ.
-        - **Expectancy:** win rate × lãi trung bình − loss rate × lỗ trung bình.
+        - **Giao dịch đã đóng:** một chu kỳ bắt đầu ở lần mua đầu tiên sau khi vị thế bằng 0 và kết thúc khi bán hết. Mua thêm hoặc bán một phần vẫn thuộc cùng chu kỳ.
+        - **Win rate / profit factor / expectancy chính:** tính trên lãi/lỗ gộp của từng chu kỳ vị thế đã đóng; expectancy = xác suất thắng × lãi trung bình − xác suất lỗ × lỗ trung bình. Vị thế còn mở không được tính vào các chỉ số này.
+        - **Thống kê theo lần bán:** mỗi lần bán là một sự kiện riêng và được trình bày trong phần mở rộng để đối chiếu; có thể khác thống kê theo chu kỳ.
         - **R-multiple:** lãi/lỗ sự kiện bán / rủi ro ban đầu phân bổ cho số cổ phiếu bán. Stop loss khai ở lệnh mua được kế thừa và phân bổ bình quân theo vị thế còn lại; dữ liệu cũ có stop loss trên lệnh bán vẫn được hỗ trợ.
-        - Mỗi lần bán là một sự kiện thống kê; bán khống, giá hiện tại và lãi/lỗ chưa thực hiện chưa được tính.
+        - **R-multiple toàn chu kỳ:** tổng lãi/lỗ đã thực hiện trong chu kỳ / tổng rủi ro ban đầu đã phân bổ cho các lần bán. Với dữ liệu mới, nên nhập stop loss ở từng lệnh mua để rủi ro ban đầu phản ánh đúng kế hoạch.
+        - Bán khống, giá hiện tại và lãi/lỗ chưa thực hiện chưa được tính. Drawdown hiện dùng P&L đã thực hiện cộng dồn từ 0, không phải NAV đầy đủ có tiền mặt.
         """
     )
