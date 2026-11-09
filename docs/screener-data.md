@@ -16,4 +16,4 @@ Mẫu rỗng nằm tại [`data/screener_template.csv`](../data/screener_templat
 | `industry` | Tên ngành theo một hệ phân loại nhất quán. |
 | `momentum` | Chỉ số động lượng do người dùng chọn; cần ghi công thức và khoảng thời gian ở metadata. Cột này được phép để trống. |
 
-Các cột bắt buộc khác không có dữ liệu có thể để trống; giá trị chữ không phải số, mã sai định dạng, hoặc mã trùng sẽ bị từ chối. Không dùng dấu phân tách hàng nghìn trong trường số. Hãy kiểm tra ngày chốt, nguồn và cách tính từ BCTC gốc trước khi diễn giải xếp hạng; điểm percentile chỉ so sánh các mã trong snapshot đang nạp, không phải khuyến nghị mua/bán.
+Các cột bắt buộc khác không có dữ liệu có thể để trống; giá trị chữ không phải số, mã sai định dạng, hoặc mã trùng sẽ bị từ chối. Không dùng dấu phân tách hàng nghìn trong trường số. P/E và P/B không dương vẫn được giữ trong bảng gốc nhưng bị loại khỏi điểm value vì P/E âm thường đi với lợi nhuận âm, còn P/B âm có thể phản ánh vốn chủ âm. Hãy kiểm tra ngày chốt, nguồn và cách tính từ BCTC gốc trước khi diễn giải xếp hạng; điểm percentile chỉ so sánh các mã trong snapshot đang nạp, không phải khuyến nghị mua/bán.

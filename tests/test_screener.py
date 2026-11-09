@@ -90,6 +90,21 @@ class ScreenerTests(unittest.TestCase):
         ranked = rank_stocks(data)
         self.assertEqual(ranked.iloc[0]["ticker"], "AAA")
 
+    def test_non_positive_valuation_ratios_are_excluded_from_value_score(self):
+        data = pd.DataFrame([
+            {"ticker": "LOSS", "pe": -5, "pb": -1, "roe": -.1, "revenue_growth": -.1,
+             "eps_growth": -.2, "debt_to_equity": .5, "avg_value_traded": 1e9,
+             "market_cap": 5e12, "industry": "A", "momentum": -.05},
+            {"ticker": "PROF", "pe": 12, "pb": 2, "roe": .15, "revenue_growth": .1,
+             "eps_growth": .12, "debt_to_equity": .3, "avg_value_traded": 1e9,
+             "market_cap": 5e12, "industry": "A", "momentum": .05},
+        ])
+
+        ranked = rank_stocks(data).set_index("ticker")
+
+        self.assertTrue(pd.isna(ranked.loc["LOSS", "value_score"]))
+        self.assertTrue(pd.notna(ranked.loc["PROF", "value_score"]))
+
     def test_save_favorite_filter_creates_tab_and_header_once(self):
         spreadsheet = FakeSpreadsheet()
         with patch("src.sheets.open_spreadsheet", return_value=spreadsheet):

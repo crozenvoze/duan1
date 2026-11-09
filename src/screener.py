@@ -119,6 +119,10 @@ def rank_stocks(data: pd.DataFrame) -> pd.DataFrame:
             if column not in frame.columns:
                 continue
             numeric = pd.to_numeric(frame[column], errors="coerce")
+            if column in {"pe", "pb"}:
+                # P/E <= 0 do doanh nghiệp lỗ và P/B <= 0 do vốn chủ âm không
+                # biểu thị một mức định giá thấp hơn; loại khỏi điểm value.
+                numeric = numeric.where(numeric > 0)
             # ascending=True memberi percentile cao nhất cho giá trị lớn nhất;
             # với chỉ số thấp là tốt, đảo chiều xếp hạng.
             component_scores.append(numeric.rank(pct=True, ascending=higher_is_better))
