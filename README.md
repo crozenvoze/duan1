@@ -71,6 +71,7 @@ GitHub Actions runs the Python suite, syntax check, and Apps Script smoke suite 
 - **Trading cost basis:** weighted-average cost per ticker. Buy fees are added to cost basis; sell fees are deducted from proceeds. A sell above the open quantity is rejected.
 - **Realized trade statistics:** sell events are treated as closed-trade observations. This can split one investment thesis across several partial sells; it is not FIFO lot accounting.
 - **DuPont:** net margin × revenue / average assets × average assets / average equity. Beginning and ending balances are needed for average assets and equity. Source statement rows must be mapped and checked before being treated as VAS measures.
+- **Bank ratios:** NIM = TTM net interest income / average interest-earning assets; CIR = absolute operating expenses / operating income; NPL = groups 3–5 loans / gross customer loans; analytical LDR = gross customer loans / customer deposits; CASA = demand deposits + margin/escrow + dedicated capital, divided by customer deposits; provision-to-loans = absolute TTM credit-loss provisions / average gross loans. Note data and raw statement values must be reviewed by the user. Missing inputs stay blank. Analytical LDR is not the regulatory ratio.
 - **Screener ranks:** factors are converted to within-universe percentile ranks. Lower P/E, P/B and debt/equity are better; higher ROE, growth and momentum are better. Percentiles are not valuations and depend on the selected universe.
 - **Backtest:** signals from day *t* are executed at the next available close, with configurable fee and slippage. Lot size, price limits, and T+2 settlement are approximations; corporate actions, taxes by broker, liquidity, auction mechanics and index reinvestment are not fully modeled. Results are research illustrations, not forecasts.
 - **Risk:** VaR/CVaR depend on the chosen return window and distribution method. Markowitz weights are sensitive to estimated returns and covariances.
@@ -78,7 +79,7 @@ GitHub Actions runs the Python suite, syntax check, and Apps Script smoke suite 
 
 ## Google Sheets tabs
 
-`Trades`, `Watchlist`, `Fundamentals`, `Prices_Cache`, `Screener_Data`, and `Saved_Filters` are expected by the pages that use them. The journal's `Trades` columns are `trade_id, timestamp, trade_date, ticker, side, price, quantity, fee, reason, stop_loss, target, strategy_tag`.
+`Trades`, `Watchlist`, `Fundamentals`, `Bank_Fundamentals`, `Prices_Cache`, `Screener_Data`, and `Saved_Filters` are used by the pages that need them. `Bank_Fundamentals` is created when the user chooses to save a reviewed bank-ratio calculation; each save appends a history row. The journal's `Trades` columns are `trade_id, timestamp, trade_date, ticker, side, price, quantity, fee, reason, stop_loss, target, strategy_tag`.
 
 ## Scheduled price cache updates
 
@@ -105,4 +106,4 @@ For the personal form setup and a non-writing Apps Script connection check, foll
 
 ## Project status
 
-Core analytics and dashboard pages are implemented. The backtest includes benchmark and fee sensitivity. The public demo is deployed and verified with fictional data. The scheduled Watchlist price workflow is prepared but requires private GitHub Secrets for Google Sheets and SSI before it can run. VAS mapping and a separate bank-ratio calculator are wired into the Fundamentals page, but live statement collection still requires FHSC credentials and source validation. The tests validate calculations against fictional examples, not live provider data.
+Core analytics and dashboard pages are implemented. The backtest includes benchmark and fee sensitivity. The public demo is deployed and verified with fictional data. The scheduled Watchlist price workflow is prepared but requires private GitHub Secrets for Google Sheets and SSI before it can run. VAS mapping and a separate bank-ratio calculator are wired into the Fundamentals page, but live statement collection still requires FHSC credentials and source validation. Apps Script smoke tests cover mocked writes; an actual user trade has not yet been verified in the private Sheet. The tests validate calculations against fictional examples, not live provider data.
