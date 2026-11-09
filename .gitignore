@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Môi trường ảo và cấu hình cục bộ
+.venv/
+venv/
+ENV/
+.env
+.env.*
+!.env.example
+
+# Thông tin xác thực và secrets
+secrets.toml
+credentials/
+service-account*.json
+*service-account*.json
+*credentials*.json
+
+# Jupyter và công cụ phát triển
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.vscode/
+.idea/
+
+# Hệ điều hành
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Dữ liệu riêng tư và tệp tạm
+*.log
+*.tmp
+*.bak
+data/private/
