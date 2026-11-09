@@ -98,6 +98,16 @@ const validId = "11111111-1111-4111-8111-111111111111";
 
 {
   const app = createHarness();
+  let output = app.context.doGet({ parameter: { request_id: validId, callback: "checkStatus" } });
+  assert.equal(output.getContent(), "checkStatus({\"pending\":true});");
+  app.context.rememberRequestStatus_(validId, false, "Expected validation response.");
+  output = app.context.doGet({ parameter: { request_id: validId, callback: "checkStatus" } });
+  assert.equal(output.getContent(), "checkStatus({\"success\":false,\"message\":\"Expected validation response.\"});");
+  assert.equal(app.rows.length, 0); // GET chỉ đọc trạng thái, không ghi Trades
+}
+
+{
+  const app = createHarness();
   const result = app.post(payload(validId, { ticker: "FP1" }));
   assert.equal(result.success, false);
   assert.match(result.message, /3 chữ cái/);

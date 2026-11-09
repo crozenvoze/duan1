@@ -101,6 +101,8 @@ For optional Vnstock v6 market data, install `requirements-vnstock-v6.txt` in a 
 
 The static form token is present in the browser when a form is served, so it must be treated as public. The local form configuration is ignored by Git. For a public form, add a real access-control layer (for example, authenticated users and server-side authorization) before pointing it at any private Sheet; a token embedded in HTML is not authentication.
 
+For the personal form setup and a non-writing Apps Script connection check, follow the [step-by-step deployment guide](docs/apps-script-deployment.md). The connection check confirms the Web app status route only; the live write criterion still requires an actual user trade to be submitted and verified in the private `Trades` tab.
+
 ## Project status
 
 Core analytics and dashboard pages are implemented. The backtest includes benchmark and fee sensitivity. The public demo is deployed and verified with fictional data. The scheduled Watchlist price workflow is prepared but requires private GitHub Secrets for Google Sheets and SSI before it can run. VAS mapping and a separate bank-ratio calculator are wired into the Fundamentals page, but live statement collection still requires FHSC credentials and source validation. The tests validate calculations against fictional examples, not live provider data.

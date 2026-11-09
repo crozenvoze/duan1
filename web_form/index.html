@@ -51,6 +51,8 @@
     }
     button:hover:not(:disabled) { background: var(--brand-dark); }
     button:disabled { cursor: wait; opacity: .68; }
+    button.secondary { border: 1px solid var(--line); background: #fff; color: var(--ink); }
+    button.secondary:hover:not(:disabled) { background: #f1f5f9; }
     .status { min-height: 24px; margin: 18px 0 0; font-size: .92rem; line-height: 1.5; }
     .status[data-kind="success"] { color: var(--success); }
     .status[data-kind="error"] { color: var(--danger); }
@@ -122,6 +124,7 @@
       </div>
       <div class="actions">
         <button id="submit-button" type="submit">Lưu giao dịch</button>
+        <button id="connection-test" class="secondary" type="button">Kiểm tra kết nối (không ghi dữ liệu)</button>
       </div>
       <p class="status" id="status" role="status" aria-live="polite"></p>
       <p class="privacy">Thông tin được gửi tới Google Sheet của bạn. Trade ID và thời điểm nhập sẽ được tạo tự động.</p>
@@ -136,6 +139,7 @@
 
     const form = document.getElementById('trade-form');
     const button = document.getElementById('submit-button');
+    const connectionButton = document.getElementById('connection-test');
     const status = document.getElementById('status');
     let sending = false;
 
@@ -159,6 +163,35 @@
         APPS_SCRIPT_URL.endsWith('/exec') &&
         FORM_TOKEN !== 'YOUR_FORM_TOKEN' && FORM_TOKEN.length >= 16;
     }
+
+    /** Kiểm tra đường dẫn Apps Script bằng GET trạng thái; không gửi lệnh và không sửa Sheet. */
+    connectionButton.addEventListener('click', async function () {
+      if (sending) return;
+      if (!configurationIsReady()) {
+        showStatus('Cần cấu hình URL Web app và token trước khi kiểm tra.', 'error');
+        return;
+      }
+      sending = true;
+      button.disabled = true;
+      connectionButton.disabled = true;
+      connectionButton.textContent = 'Đang kiểm tra...';
+      showStatus('Đang kiểm tra phản hồi của Web app. Không có giao dịch nào được gửi.', 'info');
+      try {
+        const result = await readRequestStatus(createRequestId());
+        if (result && result.pending === true) {
+          showStatus('Web app đang phản hồi. Bước này chưa kiểm tra quyền ghi vào tab Trades.', 'success');
+        } else {
+          showStatus('Web app phản hồi trạng thái không như dự kiến. Hãy cập nhật bản triển khai Apps Script.', 'error');
+        }
+      } catch (error) {
+        showStatus('Không nhận được phản hồi từ Web app. Kiểm tra URL /exec, quyền truy cập và bản triển khai.', 'error');
+      } finally {
+        sending = false;
+        button.disabled = false;
+        connectionButton.disabled = false;
+        connectionButton.textContent = 'Kiểm tra kết nối (không ghi dữ liệu)';
+      }
+    });
 
     /** Gom và chuẩn hóa dữ liệu form thành payload mà doPost nhận. */
     function createRequestId() {
