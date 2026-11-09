@@ -25,7 +25,7 @@ flowchart LR
   P --> C[Local CSV price cache]
 ```
 
-The form sends a trade to an Apps Script web app. Python reads the Sheet using a service account, computes metrics, and renders them in Streamlit. Vnstock is loaded only when market-price features are used, so the journal can run without it.
+The private trade form is served by Apps Script HTML Service and calls server functions with `google.script.run`; access can stay limited to the deploying Google account without embedding a token in the form. Python reads the Sheet using a service account, computes metrics, and renders them in Streamlit. Vnstock is loaded only when market-price features are used, so the journal can run without it.
 
 ## Run locally
 
@@ -37,7 +37,7 @@ py -3 -m venv .venv
 Copy-Item .env.example .env
 ```
 
-Fill `.env` locally with `GOOGLE_SHEETS_SPREADSHEET_ID` and the appropriate credentials path. Put the service-account file at `credentials/service-account.json`, share the private Sheet with its `client_email`, and keep both files out of Git. The form's local URL and token are kept in the ignored `web_form/config.local.js` file.
+Fill `.env` locally with `GOOGLE_SHEETS_SPREADSHEET_ID` and the appropriate credentials path. Put the service-account file at `credentials/service-account.json`, share the private Sheet with its `client_email`, and keep both files out of Git. For the private form, open the Apps Script web-app `/exec` URL after deploying `apps_script/Code.gs` and `apps_script/Index.html`; the separate local HTML form configuration is ignored by Git.
 
 Check the Sheet connection without printing trade rows:
 
@@ -101,9 +101,9 @@ The public-safe demo is deployed on Streamlit Community Cloud at [Vietnam Equity
 
 For optional Vnstock v6 market data, install `requirements-vnstock-v6.txt` in a separate environment and configure the selected source in `.env` (`VNSTOCK_SOURCE`, plus that source's API key/secret). The selected market-data source is SSI; it requires an SSI API key and secret. Vnstock v6 currently documents SSI, DNSE, FHSC, and other providers; each has its own account and access terms. This file installs Vnstock's prerelease line, so confirm its official release notes before upgrading; the Vnstock API is not part of the core test suite. The Fundamentals page now converts documented VAS IDs into the canonical schema, derives beginning balances from the preceding period, and asks the user to select the debt rows for each company before saving. It also has a separate bank-ratio calculator for NIM, CIR, NPL, analytical LDR, CASA, and credit-loss provisions to gross loans. The bank form requires values reviewed from statements and notes, keeps incomplete ratios blank, and can append history to a private `Bank_Fundamentals` tab. This flow still needs FHSC credentials and a live statement review before it can be considered verified.
 
-The static form token is present in the browser when a form is served, so it must be treated as public. The local form configuration is ignored by Git. For a public form, add a real access-control layer (for example, authenticated users and server-side authorization) before pointing it at any private Sheet; a token embedded in HTML is not authentication.
+The standalone `web_form/index.html` fallback still embeds its token in the browser and is only suitable for local personal use. The recommended private Apps Script form has no client-side token and uses access restricted to the deploying account. Never publish a form that writes to a private Sheet without a real access-control layer.
 
-For the personal form setup and a non-writing Apps Script connection check, follow the [step-by-step deployment guide](docs/apps-script-deployment.md). The connection check confirms the Web app status route only; the live write criterion still requires an actual user trade to be submitted and verified in the private `Trades` tab.
+For the personal form setup and non-writing Google Sheet connection check, follow the [step-by-step deployment guide](docs/apps-script-deployment.md). The connection check confirms the script can open the configured Sheet without reading trade rows; the live write criterion still requires an actual user trade to be submitted and verified in the private `Trades` tab.
 
 ## Project status
 

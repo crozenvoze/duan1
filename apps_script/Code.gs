@@ -1,6 +1,6 @@
 /**
  * Nhận giao dịch từ form web, kiểm tra dữ liệu và ghi an toàn vào Google Sheets.
- * Cấu hình Script Properties bắt buộc: SPREADSHEET_ID và FORM_TOKEN.
+ * Cấu hình Script Properties bắt buộc: SPREADSHEET_ID; FORM_TOKEN chỉ dành cho POST form tĩnh.
  */
 
 const TRADES_HEADERS = [
@@ -20,6 +20,10 @@ function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   const requestId = String(params.request_id || '');
   const callback = String(params.callback || '');
+  if (!requestId && !callback) {
+    return HtmlService.createHtmlOutputFromFile('Index')
+      .setTitle('Nhật ký giao dịch | Vietnam Equity Toolkit');
+  }
   if (!/^[0-9a-f-]{36}$/i.test(requestId) || !/^[A-Za-z_$][0-9A-Za-z_$]*$/.test(callback)) {
     return ContentService.createTextOutput('/* invalid request */')
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -29,6 +33,47 @@ function doGet(e) {
   const result = cached ? JSON.parse(cached) : { pending: true };
   return ContentService.createTextOutput(callback + '(' + JSON.stringify(result) + ');')
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+/** Kiểm tra quyền mở Sheet mà không đọc dòng giao dịch hoặc ghi dữ liệu. */
+function checkConnection() {
+  try {
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    if (!spreadsheetId) {
+      return { success: false, message: 'Chưa cấu hình SPREADSHEET_ID trong Script Properties.' };
+    }
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    return {
+      success: true,
+      message: 'Đã kết nối Google Sheet “' + spreadsheet.getName() + '”. Bước này không ghi giao dịch.'
+    };
+  } catch (error) {
+    console.error(error && error.stack ? error.stack : error);
+    return { success: false, message: 'Không mở được Google Sheet. Kiểm tra SPREADSHEET_ID và quyền của tài khoản triển khai.' };
+  }
+}
+
+/** Nhận lệnh từ form HTMLService đã giới hạn người truy cập ở tài khoản chủ sở hữu. */
+function submitTradeFromApp(payload) {
+  try {
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    if (!spreadsheetId) {
+      return { success: false, message: 'Chưa cấu hình SPREADSHEET_ID trong Script Properties.' };
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return { success: false, message: 'Dữ liệu gửi lên phải là một đối tượng JSON.' };
+    }
+    const requestId = String(payload.request_id || '');
+    if (!/^[0-9a-f-]{36}$/i.test(requestId)) {
+      return { success: false, message: 'Mã yêu cầu không hợp lệ. Hãy tải lại trang và thử lại.' };
+    }
+    return processTrade_(payload, requestId, spreadsheetId);
+  } catch (error) {
+    console.error(error && error.stack ? error.stack : error);
+    const detail = error && typeof error.message === 'string' ? error.message : '';
+    const message = detail.indexOf('Cấu trúc tab Trades không đúng.') === 0 ? detail : 'Có lỗi máy chủ khi lưu giao dịch. Vui lòng kiểm tra tab Trades trước khi gửi lại.';
+    return { success: false, message: message };
+  }
 }
 
 /**
@@ -69,67 +114,8 @@ function doPost(e) {
       return jsonResponse_(false, 'Token không hợp lệ.');
     }
 
-    // Cùng request_id chỉ được xử lý một lần trong thời gian trạng thái còn lưu.
-    const priorStatus = CacheService.getScriptCache().get('trade_status_' + requestId);
-    if (priorStatus) {
-      const previous = JSON.parse(priorStatus);
-      return jsonResponse_(Boolean(previous.success), String(previous.message || 'Yêu cầu đã được xử lý.'));
-    }
-
-    const validation = validateTrade_(payload);
-    if (!validation.ok) {
-      rememberRequestStatus_(requestId, false, validation.message);
-      return jsonResponse_(false, validation.message);
-    }
-
-    const lock = LockService.getScriptLock();
-    if (!lock.tryLock(10000)) {
-      rememberRequestStatus_(requestId, false, 'Hệ thống đang bận, vui lòng thử lại sau.');
-      return jsonResponse_(false, 'Hệ thống đang bận, vui lòng thử lại sau.');
-    }
-
-    try {
-      // Kiểm tra lại khi đã giữ khóa: hai POST đồng thời cùng request_id có thể
-      // cùng vượt qua lần kiểm tra bên ngoài lock nếu chỉ kiểm tra một lần.
-      const lockedPriorStatus = CacheService.getScriptCache().get('trade_status_' + requestId);
-      if (lockedPriorStatus) {
-        const previous = JSON.parse(lockedPriorStatus);
-        return jsonResponse_(Boolean(previous.success), String(previous.message || 'Yêu cầu đã được xử lý.'));
-      }
-
-      if (!consumeRateLimit_()) {
-        rememberRequestStatus_(requestId, false, 'Đã vượt giới hạn gửi tạm thời. Vui lòng chờ một phút.');
-        return jsonResponse_(false, 'Đã vượt giới hạn gửi tạm thời. Vui lòng chờ một phút.');
-      }
-
-      const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-      let sheet = spreadsheet.getSheetByName('Trades');
-      if (!sheet) {
-        sheet = spreadsheet.insertSheet('Trades');
-      }
-      ensureHeaders_(sheet);
-
-      const trade = validation.trade;
-      const row = [
-        Utilities.getUuid(),
-        new Date(),
-        trade.trade_date,
-        trade.ticker,
-        trade.side,
-        trade.price,
-        trade.quantity,
-        trade.fee,
-        trade.reason,
-        trade.stop_loss,
-        trade.target,
-        trade.strategy_tag
-      ];
-      sheet.appendRow(row);
-      rememberRequestStatus_(requestId, true, 'Đã ghi giao dịch vào nhật ký.');
-      return jsonResponse_(true, 'Đã ghi giao dịch vào nhật ký.');
-    } finally {
-      lock.releaseLock();
-    }
+    const result = processTrade_(payload, requestId, spreadsheetId);
+    return jsonResponse_(Boolean(result.success), String(result.message || ''));
   } catch (error) {
     console.error(error && error.stack ? error.stack : error);
     const genericMessage = 'Có lỗi máy chủ khi lưu giao dịch. Vui lòng thử lại sau.';
@@ -137,6 +123,57 @@ function doPost(e) {
     const message = detail.indexOf('Cấu trúc tab Trades không đúng.') === 0 ? detail : genericMessage;
     rememberRequestStatus_(requestId, false, message);
     return jsonResponse_(false, message);
+  }
+}
+
+/** Kiểm tra, chống gửi trùng và ghi một giao dịch sau khi kênh gọi đã được xác thực. */
+function processTrade_(payload, requestId, spreadsheetId) {
+  // Cùng request_id chỉ được xử lý một lần trong thời gian trạng thái còn lưu.
+  const priorStatus = CacheService.getScriptCache().get('trade_status_' + requestId);
+  if (priorStatus) {
+    const previous = JSON.parse(priorStatus);
+    return { success: Boolean(previous.success), message: String(previous.message || 'Yêu cầu đã được xử lý.') };
+  }
+
+  const validation = validateTrade_(payload);
+  if (!validation.ok) {
+    rememberRequestStatus_(requestId, false, validation.message);
+    return { success: false, message: validation.message };
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    rememberRequestStatus_(requestId, false, 'Hệ thống đang bận, vui lòng thử lại sau.');
+    return { success: false, message: 'Hệ thống đang bận, vui lòng thử lại sau.' };
+  }
+
+  try {
+    // Kiểm tra lại khi đã giữ khóa để chặn hai lần gửi đồng thời cùng request_id.
+    const lockedPriorStatus = CacheService.getScriptCache().get('trade_status_' + requestId);
+    if (lockedPriorStatus) {
+      const previous = JSON.parse(lockedPriorStatus);
+      return { success: Boolean(previous.success), message: String(previous.message || 'Yêu cầu đã được xử lý.') };
+    }
+    if (!consumeRateLimit_()) {
+      rememberRequestStatus_(requestId, false, 'Đã vượt giới hạn gửi tạm thời. Vui lòng chờ một phút.');
+      return { success: false, message: 'Đã vượt giới hạn gửi tạm thời. Vui lòng chờ một phút.' };
+    }
+
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    let sheet = spreadsheet.getSheetByName('Trades');
+    if (!sheet) sheet = spreadsheet.insertSheet('Trades');
+    ensureHeaders_(sheet);
+
+    const trade = validation.trade;
+    sheet.appendRow([
+      Utilities.getUuid(), new Date(), trade.trade_date, trade.ticker, trade.side,
+      trade.price, trade.quantity, trade.fee, trade.reason, trade.stop_loss,
+      trade.target, trade.strategy_tag
+    ]);
+    rememberRequestStatus_(requestId, true, 'Đã ghi giao dịch vào nhật ký.');
+    return { success: true, message: 'Đã ghi giao dịch vào nhật ký.' };
+  } finally {
+    lock.releaseLock();
   }
 }
 

@@ -55,11 +55,18 @@ function createHarness(initialRows = []) {
       },
       releaseLock: () => {},
     }) },
-    SpreadsheetApp: { openById: () => ({ getSheetByName: () => sheet, insertSheet: () => sheet }) },
+    SpreadsheetApp: { openById: () => ({
+      getName: () => "Equity_Toolkit",
+      getSheetByName: () => sheet,
+      insertSheet: () => sheet,
+    }) },
     Utilities: { getUuid: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
     ContentService: {
       MimeType: { JSON: "application/json", JAVASCRIPT: "application/javascript" },
       createTextOutput: response,
+    },
+    HtmlService: {
+      createHtmlOutputFromFile: file => ({ file, setTitle(title) { this.title = title; return this; } }),
     },
   };
   vm.createContext(context);
@@ -98,6 +105,17 @@ const validId = "11111111-1111-4111-8111-111111111111";
 
 {
   const app = createHarness();
+  const page = app.context.doGet();
+  assert.equal(page.file, "Index");
+  assert.match(page.title, /Vietnam Equity Toolkit/);
+  const result = app.context.checkConnection();
+  assert.equal(result.success, true);
+  assert.match(result.message, /Equity_Toolkit/);
+  assert.equal(app.rows.length, 0); // mở trang và kiểm tra Sheet không ghi dữ liệu
+}
+
+{
+  const app = createHarness();
   let output = app.context.doGet({ parameter: { request_id: validId, callback: "checkStatus" } });
   assert.equal(output.getContent(), "checkStatus({\"pending\":true});");
   app.context.rememberRequestStatus_(validId, false, "Expected validation response.");
@@ -112,6 +130,17 @@ const validId = "11111111-1111-4111-8111-111111111111";
   assert.equal(result.success, false);
   assert.match(result.message, /3 chữ cái/);
   assert.equal(app.rows.length, 0);
+}
+
+{
+  const app = createHarness([[
+    "trade_id", "timestamp", "trade_date", "ticker", "side", "price",
+    "quantity", "fee", "reason", "stop_loss", "target", "strategy_tag",
+  ]]);
+  const request = payload("33333333-3333-4333-8333-333333333333", { token: undefined });
+  assert.equal(app.context.submitTradeFromApp(request).success, true); // giao diện riêng tư không gửi token ra trình duyệt
+  assert.equal(app.context.submitTradeFromApp(request).success, true);
+  assert.equal(app.rows.length, 2); // retry cùng request_id không ghi dòng thứ hai
 }
 
 {

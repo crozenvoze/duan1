@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <title>Nhật ký giao dịch | Vietnam Equity Toolkit</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: #17212b; background: #f3f7f8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top left, #d8f3ef 0, transparent 32rem), #f3f7f8; }
+    main { width: min(880px, calc(100% - 28px)); margin: 32px auto; }
+    header { margin: 0 0 20px; }
+    .eyebrow { color: #0f766e; font-size: .78rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 8px 0; font-size: clamp(1.8rem, 4vw, 2.5rem); letter-spacing: -.04em; }
+    header p, .privacy { color: #64748b; line-height: 1.55; }
+    .card { padding: clamp(18px, 4vw, 32px); border: 1px solid #e3ebef; border-radius: 18px; background: #fff; box-shadow: 0 16px 45px #0f172a12; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; }
+    .field { min-width: 0; }
+    .full { grid-column: 1 / -1; }
+    label { display: block; margin-bottom: 6px; font-size: .9rem; font-weight: 650; }
+    input, select, textarea { display: block; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #dbe4ea; border-radius: 9px; background: #fff; color: #17212b; font: inherit; }
+    textarea { min-height: 84px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid #0f766e66; border-color: #0f766e; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+    button { min-height: 46px; padding: 0 18px; border: 0; border-radius: 10px; background: #0f766e; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+    button.secondary { border: 1px solid #dbe4ea; background: white; color: #17212b; }
+    button:disabled { opacity: .65; cursor: wait; }
+    .status { min-height: 24px; margin: 16px 0 0; line-height: 1.5; }
+    .status[data-kind="success"] { color: #067647; }
+    .status[data-kind="error"] { color: #b42318; }
+    .status[data-kind="info"] { color: #475569; }
+    .privacy { margin: 16px 0 0; font-size: .8rem; }
+    @media (max-width: 620px) { main { margin: 20px auto; } .grid { grid-template-columns: 1fr; } .full { grid-column: auto; } .actions { flex-direction: column; } button { width: 100%; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">Vietnam Equity Toolkit · riêng tư</div>
+      <h1>Ghi nhật ký giao dịch</h1>
+      <p>Trang này được Apps Script phục vụ sau khi bạn đăng nhập Google. Giao dịch được gửi trực tiếp tới Sheet riêng của bạn.</p>
+    </header>
+    <form id="trade-form" class="card">
+      <div class="grid">
+        <div class="field"><label for="trade_date">Ngày giao dịch *</label><input id="trade_date" name="trade_date" type="date" required></div>
+        <div class="field"><label for="ticker">Mã cổ phiếu *</label><input id="ticker" name="ticker" type="text" maxlength="3" pattern="[A-Za-z]{3}" placeholder="FPT" autocomplete="off" required></div>
+        <div class="field"><label for="side">Loại lệnh *</label><select id="side" name="side"><option value="BUY">Mua (BUY)</option><option value="SELL">Bán (SELL)</option></select></div>
+        <div class="field"><label for="price">Giá khớp (VND) *</label><input id="price" name="price" type="number" min="0.01" step="any" required></div>
+        <div class="field"><label for="quantity">Khối lượng (cổ phiếu) *</label><input id="quantity" name="quantity" type="number" min="1" step="1" required></div>
+        <div class="field"><label for="fee">Phí + thuế (VND)</label><input id="fee" name="fee" type="number" min="0" step="any" value="0"></div>
+        <div class="field"><label for="stop_loss">Stop loss dự kiến (VND)</label><input id="stop_loss" name="stop_loss" type="number" min="0.01" step="any"></div>
+        <div class="field"><label for="target">Giá mục tiêu (VND)</label><input id="target" name="target" type="number" min="0.01" step="any"></div>
+        <div class="field"><label for="strategy_tag">Chiến lược</label><input id="strategy_tag" name="strategy_tag" type="text" maxlength="100" placeholder="breakout, value, swing..."></div>
+        <div class="field full"><label for="reason">Lý do vào/ra lệnh</label><textarea id="reason" name="reason" maxlength="1000" placeholder="Ghi chú ngắn về luận điểm giao dịch..."></textarea></div>
+      </div>
+      <div class="actions">
+        <button id="submit-button" type="submit">Lưu giao dịch</button>
+        <button id="connection-test" class="secondary" type="button">Kiểm tra kết nối (không ghi dữ liệu)</button>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <p class="privacy">Không cần đặt token trong trình duyệt. Quyền truy cập được giới hạn bằng tài khoản Google của bạn.</p>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById('trade-form');
+    const submitButton = document.getElementById('submit-button');
+    const checkButton = document.getElementById('connection-test');
+    const status = document.getElementById('status');
+    let sending = false;
+
+    /** Hiển thị kết quả thao tác cho người dùng. */
+    function showStatus(message, kind) {
+      status.textContent = message;
+      status.dataset.kind = kind;
+    }
+
+    /** Tạo ngày hiện tại theo múi giờ trình duyệt để tránh lệch UTC. */
+    function localDateString(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    /** Tạo mã yêu cầu duy nhất nhằm chống ghi trùng khi gửi lại. */
+    function createRequestId() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+      const bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+
+    /** Bật/tắt nút trong khi Apps Script xử lý bất đồng bộ. */
+    function setBusy(value) {
+      sending = value;
+      submitButton.disabled = value;
+      checkButton.disabled = value;
+      submitButton.textContent = value ? 'Đang xử lý...' : 'Lưu giao dịch';
+    }
+
+    checkButton.addEventListener('click', function () {
+      if (sending) return;
+      setBusy(true);
+      showStatus('Đang kiểm tra quyền truy cập Sheet. Không có giao dịch nào được gửi.', 'info');
+      google.script.run
+        .withSuccessHandler(result => {
+          showStatus(result.message, result.success ? 'success' : 'error');
+          setBusy(false);
+        })
+        .withFailureHandler(error => {
+          showStatus(`Không kiểm tra được kết nối: ${error.message || 'lỗi máy chủ'}`, 'error');
+          setBusy(false);
+        })
+        .checkConnection();
+    });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (sending || !form.reportValidity()) return;
+      const data = new FormData(form);
+      const payload = {
+        request_id: createRequestId(),
+        trade_date: String(data.get('trade_date') || ''),
+        ticker: String(data.get('ticker') || '').trim().toUpperCase(),
+        side: String(data.get('side') || ''),
+        price: Number(data.get('price')),
+        quantity: Number(data.get('quantity')),
+        fee: data.get('fee') === '' ? 0 : Number(data.get('fee')),
+        reason: String(data.get('reason') || '').trim(),
+        stop_loss: data.get('stop_loss') === '' ? '' : Number(data.get('stop_loss')),
+        target: data.get('target') === '' ? '' : Number(data.get('target')),
+        strategy_tag: String(data.get('strategy_tag') || '').trim()
+      };
+      if (!/^[A-Z]{3}$/.test(payload.ticker) || !Number.isInteger(payload.quantity) || payload.quantity <= 0 || !Number.isFinite(payload.price) || payload.price <= 0 || !Number.isFinite(payload.fee) || payload.fee < 0) {
+        showStatus('Kiểm tra mã cổ phiếu, khối lượng, giá và phí.', 'error');
+        return;
+      }
+      setBusy(true);
+      showStatus('Đang lưu giao dịch vào Sheet riêng...', 'info');
+      google.script.run
+        .withSuccessHandler(result => {
+          showStatus(result.message, result.success ? 'success' : 'error');
+          if (result.success) {
+            form.reset();
+            document.getElementById('fee').value = '0';
+            document.getElementById('trade_date').value = localDateString(new Date());
+          }
+          setBusy(false);
+        })
+        .withFailureHandler(error => {
+          showStatus(`Không nhận được xác nhận từ Apps Script. Hãy kiểm tra tab Trades trước khi gửi lại. ${error.message || ''}`, 'error');
+          setBusy(false);
+        })
+        .submitTradeFromApp(payload);
+    });
+
+    document.getElementById('trade_date').value = localDateString(new Date());
+  </script>
+</body>
+</html>

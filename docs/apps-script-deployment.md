@@ -1,15 +1,15 @@
-# Deploy form giao dịch cá nhân
+# Deploy form giao dịch riêng tư
 
-Hướng dẫn này dành cho bản form cá nhân. Google Sheet `Trades` phải để riêng tư. Không đưa API token hoặc URL deployment có token vào chat.
+Google Sheet `Trades` phải để riêng tư. Bản triển khai khuyến nghị phục vụ chính giao diện form từ Apps Script và giới hạn người truy cập là tài khoản của bạn. Cách này không cần nhúng token vào trình duyệt và không phụ thuộc CORS từ một trang bên ngoài.
 
 ## 1. Cập nhật mã Apps Script
 
 1. Mở dự án Apps Script đang liên kết với Google Sheet.
 2. Mở tệp `Code.gs`, thay nội dung bằng `apps_script/Code.gs` trong repo rồi bấm **Save**.
-3. Mở **Project Settings → Script Properties** và tạo hai thuộc tính:
-   - `SPREADSHEET_ID`: phần ID trong URL Google Sheet nằm giữa `/d/` và `/edit`.
-   - `FORM_TOKEN`: token ngẫu nhiên dài ít nhất 32 ký tự.
-4. Nếu cần tạo token trong PowerShell, chạy:
+3. Nhấn dấu **+ → HTML**, đặt tên tệp là `Index`, rồi dán toàn bộ `apps_script/Index.html` trong repo và bấm **Save**.
+4. Mở **Project Settings → Script Properties**, tạo thuộc tính `SPREADSHEET_ID` bằng phần ID của Sheet nằm giữa `/d/` và `/edit` trong URL.
+
+Nếu bạn còn dùng `web_form/index.html` độc lập trên máy, nó cần thêm `FORM_TOKEN` dài ít nhất 32 ký tự. Token đó nằm trong trình duyệt nên chỉ dùng cho trang cục bộ, không dùng để bảo vệ một form công khai. Có thể tạo bằng PowerShell:
 
    ```powershell
    $bytes = New-Object byte[] 32
@@ -19,30 +19,24 @@ Hướng dẫn này dành cho bản form cá nhân. Google Sheet `Trades` phải
    $token
    ```
 
-   Giữ token trong trình quản lý mật khẩu khi chuyển giữa Script Properties và máy tính. Đừng dán token vào GitHub hoặc chat.
+   Lưu token trong Script Properties với tên `FORM_TOKEN` và cấu hình vào trang cục bộ bằng `src.configure_form`. Không dán token vào GitHub hoặc chat. Nếu chỉ dùng giao diện `Index` do Apps Script phục vụ, có thể bỏ qua bước token này.
 
 ## 2. Tạo bản triển khai Web app
 
 1. Chọn **Deploy → New deployment** (hoặc **Manage deployments → Edit** nếu đã có Web app).
 2. Chọn loại **Web app**.
 3. Chọn **Execute as: Me** để script ghi bằng quyền của chủ sở hữu.
-4. Với form chỉ dùng cá nhân, đặt **Who has access: Only myself** và đăng nhập đúng tài khoản Google sở hữu Sheet khi mở form.
-5. Chọn **Deploy**. Khi cập nhật `Code.gs`, phải chọn **New version**; lưu mã nguồn thôi chưa cập nhật deployment.
+4. Đặt **Who has access: Only myself**. Điều này giới hạn giao diện vào tài khoản của bạn.
+5. Chọn **Deploy**. Khi cập nhật `Code.gs` hoặc `Index.html`, phải chọn **New version**; lưu mã nguồn thôi chưa cập nhật deployment.
 6. Sao chép URL kết thúc bằng `/exec`.
 
-Không chọn quyền truy cập công khai cho Sheet. Token nằm trong trình duyệt của form nên không phải cơ chế xác thực cho một form công khai.
+Không chọn quyền truy cập công khai cho Sheet. Mở URL `/exec` khi đã đăng nhập bằng chính tài khoản triển khai; trang form được Apps Script phục vụ tại đó.
 
-## 3. Cấu hình form cục bộ
+## 3. Kiểm tra kết nối không ghi dữ liệu
 
-Mở PowerShell tại thư mục dự án và chạy **.\.venv\Scripts\python.exe -m src.configure_form**. Nhập URL kết thúc bằng /exec. Khi được hỏi, nhập FORM_TOKEN đã đặt trong Script Properties; nội dung token sẽ không hiện trên màn hình.
+1. Mở URL Web app kết thúc bằng `/exec` và đăng nhập bằng tài khoản triển khai.
+2. Bấm **Kiểm tra kết nối (không ghi dữ liệu)**. Nút gọi hàm đọc quyền truy cập Sheet; nó không tạo tab, không đọc dòng giao dịch và không ghi dữ liệu.
+3. Thông báo kết nối thành công xác nhận script mở được đúng Sheet. Nếu lỗi, kiểm tra `SPREADSHEET_ID` và quyền của tài khoản triển khai.
+4. Để xác nhận ghi thật theo tiêu chí Phase 1, chỉ gửi một giao dịch thật của bạn khi đã sẵn sàng, rồi kiểm tra dòng mới trong tab `Trades`. Nếu chưa muốn ghi giao dịch, dừng ở bước 3.
 
-Trình hướng dẫn tạo web_form/config.local.js với chuỗi đã được mã hóa đúng cho JavaScript. Tệp này nằm trong .gitignore nên không được đưa lên GitHub. Không gửi token vào chat.
-
-## 4. Kiểm tra an toàn
-
-1. Mở `web_form/index.html` bằng trình duyệt, đăng nhập Google bằng tài khoản đã chọn ở bước triển khai.
-2. Bấm **Kiểm tra kết nối (không ghi dữ liệu)**. Nút chỉ gọi GET trạng thái; nó không gửi lệnh và không ghi vào Sheet.
-3. Thông báo **Web app đang phản hồi** xác nhận URL và tuyến trạng thái GET hoạt động. Nó chưa xác nhận quyền ghi vào `Trades`.
-4. Để xác nhận ghi thật theo tiêu chí Phase 1, chỉ gửi một giao dịch thật của bạn khi đã sẵn sàng, rồi kiểm tra dòng đó trong tab `Trades`. Nếu chưa muốn ghi giao dịch, dừng ở bước 3.
-
-Nếu nút kiểm tra không nhận phản hồi, kiểm tra URL `/exec`, quyền truy cập của Web app và xác nhận deployment đang dùng **New version**. Nếu cấu hình hợp lệ nhưng form vẫn không phản hồi, kiểm tra tài khoản Google đang đăng nhập và quyền của script đối với Sheet.
+Nếu bạn cần tiếp tục dùng `web_form/index.html` cục bộ, chạy `python -m src.configure_form` trong môi trường `.venv`, nhập URL `/exec` và token. Trang cục bộ gửi qua POST `no-cors` rồi hỏi trạng thái qua JSONP; nếu trình duyệt hoặc quyền Google chặn luồng này, hãy mở trực tiếp giao diện Apps Script ở URL `/exec` thay vì bật truy cập công khai.
