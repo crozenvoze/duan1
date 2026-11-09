@@ -91,11 +91,10 @@ GitHub Actions runs the Python suite, syntax check, and Apps Script smoke suite 
 
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 - `GOOGLE_SERVICE_ACCOUNT_JSON` (the JSON contents, stored only as a GitHub Secret)
-- `VNSTOCK_SOURCE` (`ssi`, `dnse`, or `fhsc`)
-- `SSI_API_KEY` and `SSI_API_SECRET` for `ssi`; `DNSE_API_KEY` and `DNSE_API_SECRET` for `dnse`; or `FHSC_API_KEY` for `fhsc`
+- `SSI_API_KEY` and `SSI_API_SECRET` (the workflow's source is fixed to SSI)
 - `VNSTOCK_API_KEY` only if the Vnstock CI entitlement check reports `VNSTOCK_TIER_CI_KEY_REQUIRED`; it is a separate Vnstock account key, not an SSI market-data key
 
-The service account needs edit access to the private Sheet. Do not add the credential JSON to the repository or paste it into chat. For SSI, use a market-data-only key if the portal allows scopes; this workflow does not need trading permissions or OTP. Vnstock access, provider credentials, quotas, and API behavior depend on the selected provider; the job reports failures by ticker and error type without printing secret values. The schedule is prepared but will not update live prices until those secrets are configured.
+The service account needs edit access to the private Sheet. Do not add the credential JSON to the repository or paste it into chat. For SSI, use a market-data-only key if the portal allows scopes; this workflow does not need trading permissions or OTP. Vnstock may additionally require `VNSTOCK_API_KEY` for CI entitlement; add it only if the job reports `VNSTOCK_TIER_CI_KEY_REQUIRED`. The job reports failures by ticker and error type without printing secret values. The schedule is prepared but will not update live prices until those secrets are configured.
 
 See [the step-by-step GitHub Secrets guide](docs/github-actions-secrets.md) to enable the workflow without exposing credentials in chat or source control.
 
