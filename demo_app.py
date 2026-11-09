@@ -21,10 +21,22 @@ st.info("Dữ liệu dưới đây hoàn toàn giả lập để minh họa các
 
 result = calculate_journal(SAMPLE_TRADES)
 summary = result["summary"]
-left, middle, right = st.columns(3)
+closed_pf = summary["closed_trade_profit_factor"]
+closed_pf_text = "∞" if closed_pf == float("inf") else ("—" if closed_pf is None else f"{closed_pf:.2f}")
+left, middle, right, last = st.columns(4)
 left.metric("Lãi/lỗ đã thực hiện", f"{summary['realized_pnl']:,.0f} VND")
-middle.metric("Tỷ lệ giao dịch thắng", f"{summary['win_rate']:.0%}")
-right.metric("Profit factor", f"{summary['profit_factor']:.2f}")
+middle.metric("Vị thế đã đóng", f"{summary['closed_trade_count']:,}")
+right.metric("Win rate / vị thế đóng", f"{summary['closed_trade_win_rate']:.0%}")
+last.metric("Profit factor / vị thế đóng", closed_pf_text)
+
+with st.expander("Thống kê theo từng lần bán"):
+    event_pf = summary["profit_factor"]
+    event_pf_text = "∞" if event_pf == float("inf") else ("—" if event_pf is None else f"{event_pf:.2f}")
+    a, b, c, d = st.columns(4)
+    a.metric("Sự kiện bán", f"{summary['closed_sell_events']:,}")
+    b.metric("Win rate / lần bán", f"{summary['win_rate']:.0%}")
+    c.metric("Profit factor / lần bán", event_pf_text)
+    d.metric("Expectancy / lần bán", f"{summary['expectancy']:,.0f} VND")
 
 st.subheader("Vị thế cuối kỳ")
 positions = pd.DataFrame(
@@ -35,6 +47,22 @@ positions = pd.DataFrame(
     ]
 )
 st.dataframe(positions, hide_index=True, width="stretch")
+
+st.subheader("Chu kỳ vị thế đã đóng")
+closed = pd.DataFrame(
+    [
+        {
+            "Mã": trade["ticker"],
+            "Ngày mở": trade["entry_date"],
+            "Ngày đóng": trade["exit_date"],
+            "Số lệnh mua/bán": f"{trade['buy_events']}/{trade['sell_events']}",
+            "Lãi/lỗ toàn chu kỳ (VND)": trade["realized_pnl"],
+            "R-multiple": trade["r_multiple"],
+        }
+        for trade in result["closed_trades"]
+    ]
+)
+st.dataframe(closed, hide_index=True, width="stretch")
 
 st.subheader("Lãi/lỗ thực hiện cộng dồn")
 curve = pd.DataFrame(result["equity_curve"])
