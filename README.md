@@ -78,6 +78,7 @@ GitHub Actions runs the Python suite, syntax check, and Apps Script smoke suite 
 - **Screener ranks:** factors are converted to within-universe percentile ranks. Lower P/E, P/B and debt/equity are better; higher ROE, growth and momentum are better. Percentiles are not valuations and depend on the selected universe.
 - **Backtest:** signals from day *t* are executed at the next available close, with configurable fee and slippage. Lot size, price limits, and T+2 settlement are approximations; corporate actions, taxes by broker, liquidity, auction mechanics and index reinvestment are not fully modeled. Results are research illustrations, not forecasts.
 - **Risk:** VaR/CVaR depend on the chosen return window and distribution method. Markowitz weights are sensitive to estimated returns and covariances.
+- **Market-price units:** Vnstock equity OHLCV values are in thousands of VND; this toolkit converts OHLC prices to VND. Index values stay in index points and are not scaled. Provider adjustments for corporate actions can differ, so inspect raw prices before comparing sources. See [Vnstock's Market schema and units](https://www.vnstocks.com/docs/vnstock/v6/thi-truong-market).
 - **Data:** Vnstock APIs, access terms, schemas and source availability can change. Review the provider's current license and verify raw prices/statements before making decisions. Financial statement mapping is intentionally not guessed by the app.
 
 ## Google Sheets tabs
