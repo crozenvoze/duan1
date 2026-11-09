@@ -12,6 +12,7 @@ class BankFundamentalsTests(unittest.TestCase):
             def __init__(self):
                 self.values = []
                 self.appended = []
+                self.append_options = []
                 self.updated = []
 
             def get_all_values(self):
@@ -23,6 +24,7 @@ class BankFundamentalsTests(unittest.TestCase):
 
             def append_rows(self, rows, value_input_option):
                 self.appended.extend(rows)
+                self.append_options.append(value_input_option)
 
         class Spreadsheet:
             def __init__(self):
@@ -50,6 +52,7 @@ class BankFundamentalsTests(unittest.TestCase):
         self.assertEqual(saved[BANK_FUNDAMENTALS_HEADERS.index("period")], "2025-Q4")
         self.assertEqual(saved[BANK_FUNDAMENTALS_HEADERS.index("casa")], "")
         self.assertTrue(saved[BANK_FUNDAMENTALS_HEADERS.index("saved_at")])
+        self.assertEqual(spreadsheet.worksheet_value.append_options, ["RAW"])
 
     def test_writer_rejects_wrong_existing_headers_without_overwriting(self):
         class Worksheet:

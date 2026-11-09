@@ -376,7 +376,8 @@ def write_fundamentals(records: list[dict[str, Any]]) -> int:
     if not new_records:
         return 0
     values = [[record.get(header, "") for header in FUNDAMENTALS_HEADERS] for record in new_records]
-    worksheet.append_rows(values, value_input_option="USER_ENTERED")
+    # RAW giữ nguyên ghi chú/ngành/kỳ do người dùng nhập, không diễn giải công thức Sheets.
+    worksheet.append_rows(values, value_input_option="RAW")
     return len(values)
 
 

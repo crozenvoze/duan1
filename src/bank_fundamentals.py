@@ -54,7 +54,7 @@ def write_bank_fundamental(record: dict[str, Any]) -> None:
     row["saved_at"] = datetime.now(timezone.utc).isoformat()
     worksheet.append_rows(
         [[row.get(header, "") if row.get(header) is not None else "" for header in BANK_FUNDAMENTALS_HEADERS]],
-        value_input_option="USER_ENTERED",
+        value_input_option="RAW",
     )
 
 

@@ -104,6 +104,7 @@ class FundamentalsTests(unittest.TestCase):
             def __init__(self):
                 self.values = [LEGACY_FUNDAMENTALS_HEADERS, ["AAA", "2024Q1"] + [""] * (len(LEGACY_FUNDAMENTALS_HEADERS) - 2)]
                 self.appended = []
+                self.append_option = None
 
             def get_all_values(self):
                 return self.values
@@ -113,6 +114,7 @@ class FundamentalsTests(unittest.TestCase):
 
             def append_rows(self, rows, value_input_option):
                 self.appended.extend(rows)
+                self.append_option = value_input_option
 
         class Spreadsheet:
             def __init__(self, worksheet):
@@ -130,6 +132,7 @@ class FundamentalsTests(unittest.TestCase):
         self.assertEqual(worksheet.values[1][0:2], ["AAA", "2024Q1"])
         self.assertEqual(worksheet.appended[0][FUNDAMENTALS_HEADERS.index("industry")], "Retail")
         self.assertEqual(worksheet.appended[0][FUNDAMENTALS_HEADERS.index("receivables_ending")], 25)
+        self.assertEqual(worksheet.append_option, "RAW")
 
 
 if __name__ == "__main__":
