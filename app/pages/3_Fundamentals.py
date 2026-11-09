@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import sys
+from math import isfinite
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -21,6 +22,7 @@ from src.fundamentals import (
     write_fundamentals,
 )
 from src.metrics import bank_ratios
+from src.bank_fundamentals import read_bank_fundamentals, write_bank_fundamental
 
 st.set_page_config(page_title="Fundamentals", page_icon="📊", layout="wide")
 
@@ -29,6 +31,12 @@ st.set_page_config(page_title="Fundamentals", page_icon="📊", layout="wide")
 def load_fundamentals() -> pd.DataFrame:
     """Đọc bảng fundamentals, cache 5 phút để hạn chế gọi Sheets."""
     return read_fundamentals()
+
+
+@st.cache_data(ttl=300, show_spinner="Đang đọc lịch sử chỉ số ngân hàng...")
+def load_bank_fundamentals() -> pd.DataFrame:
+    """Đọc lịch sử riêng cho ngân hàng và cache trong 5 phút."""
+    return read_bank_fundamentals()
 
 
 st.title("📊 Fundamental Dashboard")
@@ -49,6 +57,7 @@ with st.expander("Phân tích riêng ngân hàng"):
         left, right = st.columns(2)
         with left:
             bank_symbol = st.text_input("Mã ngân hàng", max_chars=3, placeholder="VCB").strip().upper()
+            bank_period = st.text_input("Kỳ báo cáo", placeholder="2025-Q4 hoặc 2025")
             nii_ttm = st.text_input("Thu nhập lãi thuần TTM (VND)", placeholder="Ví dụ: 50000000000")
             earning_assets = st.text_input("Tài sản sinh lãi bình quân (VND)", placeholder="Bình quân theo kỳ")
             operating_expenses = st.text_input("Chi phí hoạt động (VND)", placeholder="Có thể nhập số âm")
@@ -62,6 +71,8 @@ with st.expander("Phân tích riêng ngân hàng"):
             customer_deposits = st.text_input("Tiền gửi khách hàng (VND)")
             provision_ttm = st.text_input("Chi phí dự phòng tín dụng TTM (VND)", placeholder="Có thể nhập số âm")
             average_gross_loans = st.text_input("Dư nợ cho vay gộp bình quân (VND)")
+            source_note = st.text_input("Nguồn/ghi chú đối chiếu", placeholder="Tên báo cáo, trang, đường dẫn...")
+        save_record = st.checkbox("Lưu bản ghi vào tab Bank_Fundamentals")
         submitted = st.form_submit_button("Tính chỉ số ngân hàng")
     if submitted:
         if len(bank_symbol) != 3 or not bank_symbol.isalpha():
@@ -70,7 +81,10 @@ with st.expander("Phân tích riêng ngân hàng"):
             def parse_amount(value: str) -> float | None:
                 if not value.strip():
                     return None
-                return float(value.replace(",", "").replace(" ", ""))
+                amount = float(value.replace(",", "").replace(" ", ""))
+                if not isfinite(amount):
+                    raise ValueError("số tiền phải là số hữu hạn")
+                return amount
 
             try:
                 bank_values = bank_ratios(
@@ -87,6 +101,27 @@ with st.expander("Phân tích riêng ngân hàng"):
                     credit_loss_provision_ttm=parse_amount(provision_ttm),
                     average_gross_customer_loans=parse_amount(average_gross_loans),
                 )
+                if save_record:
+                    write_bank_fundamental({
+                        "ticker": bank_symbol,
+                        "period": bank_period,
+                        "net_interest_income_ttm": parse_amount(nii_ttm),
+                        "average_interest_earning_assets": parse_amount(earning_assets),
+                        "operating_expenses": parse_amount(operating_expenses),
+                        "operating_income": parse_amount(operating_income),
+                        "non_performing_loans": parse_amount(npl_balance),
+                        "gross_customer_loans": parse_amount(gross_loans),
+                        "demand_deposits": parse_amount(demand_deposits),
+                        "margin_escrow_deposits": parse_amount(escrow_deposits),
+                        "dedicated_deposits": parse_amount(dedicated_deposits),
+                        "customer_deposits": parse_amount(customer_deposits),
+                        "credit_loss_provision_ttm": parse_amount(provision_ttm),
+                        "average_gross_customer_loans": parse_amount(average_gross_loans),
+                        **bank_values,
+                        "source_note": source_note.strip(),
+                    })
+                    load_bank_fundamentals.clear()
+                    st.success(f"Đã thêm bản ghi {bank_symbol} kỳ {bank_period} vào Bank_Fundamentals.")
                 st.markdown(f"**{bank_symbol} · Chỉ số ngân hàng**")
                 labels = (
                     ("nim", "NIM"), ("cir", "CIR"), ("npl", "NPL"),
@@ -100,8 +135,24 @@ with st.expander("Phân tích riêng ngân hàng"):
                     "CIR và tỷ lệ dự phòng hiển thị dạng dương bằng trị tuyệt đối chi phí. "
                     "LDR ở đây là dư nợ gộp / tiền gửi khách hàng, không phải tỷ lệ quy định của NHNN."
                 )
-            except ValueError:
-                st.error("Các số tiền chỉ được chứa chữ số, dấu âm và dấu phẩy phân tách hàng nghìn.")
+            except ValueError as exc:
+                st.error(f"Dữ liệu nhập chưa hợp lệ: {exc}")
+            except Exception as exc:
+                st.error(f"Không thể lưu dữ liệu ngân hàng vào Google Sheets: {exc}")
+
+with st.expander("Lịch sử chỉ số ngân hàng đã lưu"):
+    try:
+        bank_history = load_bank_fundamentals()
+        if bank_history.empty:
+            st.info("Chưa có bản ghi trong tab Bank_Fundamentals.")
+        else:
+            st.dataframe(
+                bank_history.sort_values("saved_at", ascending=False),
+                hide_index=True,
+                use_container_width=True,
+            )
+    except Exception:
+        st.error("Không đọc được lịch sử Bank_Fundamentals trong Google Sheets.")
 
 with st.expander("Lấy, ánh xạ và lưu BCTC Vnstock", expanded=data.empty):
     st.caption(
