@@ -4,6 +4,8 @@ A personal research workspace for Vietnamese equities. It combines a Google Shee
 
 > **Privacy:** this repository is designed to use a private Google Sheet. Never commit `.env`, service-account JSON, Streamlit secrets, or the local web-form configuration. Do not publish a build connected to your personal trades. Use fictional data for a public demo.
 
+See the [repository security review](docs/security-review.md) for the latest scoped scan and its limitations.
+
 ## What it contains
 
 | Area | Purpose | Current data source |
