@@ -10,8 +10,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.screener import filter_stocks, rank_stocks
-from src.sheets import open_spreadsheet, read_worksheet
+from src.screener import filter_stocks, rank_stocks, save_favorite_filter
+from src.sheets import read_worksheet
 
 st.set_page_config(page_title="Stock Screener", page_icon="🔎", layout="wide")
 
@@ -23,20 +23,6 @@ def load_screener_data() -> pd.DataFrame:
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows[1:], columns=rows[0])
-
-
-def save_favorite_filter(name: str, criteria: dict) -> None:
-    """Lưu cấu hình lọc vào tab Saved_Filters, không ghi đè bộ lọc cũ."""
-    spreadsheet = open_spreadsheet()
-    try:
-        worksheet = spreadsheet.worksheet("Saved_Filters")
-    except Exception:
-        worksheet = spreadsheet.add_worksheet(title="Saved_Filters", rows=500, cols=3)
-    if worksheet.get_last_row() == 0:
-        worksheet.append_row(["name", "criteria_json", "saved_at"])
-    from datetime import datetime, timezone
-    import json
-    worksheet.append_row([name, json.dumps(criteria, ensure_ascii=False), datetime.now(timezone.utc).isoformat()])
 
 
 st.title("🔎 Stock Screener")

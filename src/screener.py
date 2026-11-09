@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+import json
 from typing import Any
 
 import pandas as pd
@@ -72,3 +74,43 @@ def rank_stocks(data: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("Không có chỉ tiêu nào để xếp hạng.")
     frame["composite_score"] = frame[scores].mean(axis=1)
     return frame.sort_values("composite_score", ascending=False, na_position="last").reset_index(drop=True)
+
+
+def save_favorite_filter(name: str, criteria: dict[str, Any]) -> None:
+    """Ghi bộ lọc vào tab Saved_Filters, tạo tab/header khi chưa có.
+
+    Đầu vào là tên bộ lọc và tiêu chí đã chuẩn hóa từ giao diện. Đầu ra là
+    một dòng append-only gồm tên, JSON tiêu chí và thời điểm UTC; không thay
+    thế các bộ lọc đã lưu. Dùng RAW để nội dung người dùng không bị hiểu là công thức.
+    """
+    filter_name = str(name or "").strip()
+    if not filter_name:
+        raise ValueError("Tên bộ lọc không được để trống.")
+    if len(filter_name) > 80:
+        raise ValueError("Tên bộ lọc không được dài quá 80 ký tự.")
+    if not isinstance(criteria, dict):
+        raise ValueError("Tiêu chí bộ lọc phải là một đối tượng.")
+
+    from gspread.exceptions import WorksheetNotFound
+    from src.sheets import open_spreadsheet
+
+    spreadsheet = open_spreadsheet()
+    try:
+        worksheet = spreadsheet.worksheet("Saved_Filters")
+    except WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(title="Saved_Filters", rows=500, cols=3)
+
+    headers = ["name", "criteria_json", "saved_at"]
+    existing = worksheet.get_all_values()
+    if not existing:
+        worksheet.append_row(headers, value_input_option="RAW")
+    elif existing[0][:len(headers)] != headers:
+        raise RuntimeError("Header tab Saved_Filters không đúng; không ghi đè dữ liệu hiện có.")
+    worksheet.append_row(
+        [
+            filter_name,
+            json.dumps(criteria, ensure_ascii=False, allow_nan=False),
+            datetime.now(timezone.utc).isoformat(),
+        ],
+        value_input_option="RAW",
+    )

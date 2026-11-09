@@ -1,10 +1,41 @@
 """Kiểm thử lọc và xếp hạng cổ phiếu bằng dữ liệu giả lập."""
 
 import unittest
+from unittest.mock import patch
 
+from gspread.exceptions import WorksheetNotFound
 import pandas as pd
 
-from src.screener import filter_stocks, rank_stocks
+from src.screener import filter_stocks, rank_stocks, save_favorite_filter
+
+
+class FakeWorksheet:
+    def __init__(self, values=None):
+        self.values = list(values or [])
+        self.append_calls = []
+
+    def get_all_values(self):
+        return self.values
+
+    def append_row(self, row, value_input_option=None):
+        self.append_calls.append((row, value_input_option))
+        self.values.append(row)
+
+
+class FakeSpreadsheet:
+    def __init__(self, worksheet=None):
+        self.saved_filters = worksheet
+        self.created = []
+
+    def worksheet(self, title):
+        if self.saved_filters is None:
+            raise WorksheetNotFound(title)
+        return self.saved_filters
+
+    def add_worksheet(self, **kwargs):
+        self.created.append(kwargs)
+        self.saved_filters = FakeWorksheet()
+        return self.saved_filters
 
 
 class ScreenerTests(unittest.TestCase):
@@ -19,6 +50,39 @@ class ScreenerTests(unittest.TestCase):
         self.assertEqual(filtered["ticker"].tolist(), ["AAA"])
         ranked = rank_stocks(data)
         self.assertEqual(ranked.iloc[0]["ticker"], "AAA")
+
+    def test_save_favorite_filter_creates_tab_and_header_once(self):
+        spreadsheet = FakeSpreadsheet()
+        with patch("src.sheets.open_spreadsheet", return_value=spreadsheet):
+            save_favorite_filter("Value", {"pe_max": 12, "industries": ["Ngân hàng"]})
+
+        self.assertEqual(spreadsheet.created, [{"title": "Saved_Filters", "rows": 500, "cols": 3}])
+        self.assertEqual(spreadsheet.saved_filters.values[0], ["name", "criteria_json", "saved_at"])
+        self.assertEqual(len(spreadsheet.saved_filters.values), 2)
+        self.assertEqual(spreadsheet.saved_filters.append_calls[0][1], "RAW")
+        self.assertEqual(spreadsheet.saved_filters.append_calls[1][1], "RAW")
+
+    def test_save_favorite_filter_does_not_duplicate_existing_header(self):
+        worksheet = FakeWorksheet([["name", "criteria_json", "saved_at"]])
+        spreadsheet = FakeSpreadsheet(worksheet)
+        with patch("src.sheets.open_spreadsheet", return_value=spreadsheet):
+            save_favorite_filter("Quality", {"roe_min": 0.15})
+
+        self.assertEqual(len(worksheet.values), 2)
+        self.assertEqual(worksheet.values[1][0], "Quality")
+
+    def test_save_favorite_filter_rejects_blank_name(self):
+        with self.assertRaisesRegex(ValueError, "không được để trống"):
+            save_favorite_filter("   ", {})
+
+    def test_save_favorite_filter_rejects_wrong_existing_header(self):
+        worksheet = FakeWorksheet([["filter", "json", "date"]])
+        spreadsheet = FakeSpreadsheet(worksheet)
+        with patch("src.sheets.open_spreadsheet", return_value=spreadsheet):
+            with self.assertRaisesRegex(RuntimeError, "Header tab Saved_Filters"):
+                save_favorite_filter("Quality", {})
+        self.assertEqual(len(worksheet.values), 1)
+        self.assertEqual(worksheet.append_calls, [])
 
 
 if __name__ == "__main__":
