@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.market_data import fetch_history, get_current_price
 from src.sheets import read_worksheet
+from src.watchlist import price_change_from_sessions, threshold_alert, volume_vs_previous_sessions
 
 st.set_page_config(page_title="Watchlist", page_icon="👀", layout="wide")
 
@@ -56,31 +57,20 @@ def build_row(item: dict[str, str], start: str, end: str) -> dict[str, object]:
     current = get_current_price(ticker)
     price = float(current["price"])
 
-    def change_from_sessions(back: int) -> float | None:
-        """Tính thay đổi so với số phiên trước; không đủ dữ liệu thì trả None."""
-        if len(closes) <= back:
-            return None
-        base = float(closes.iloc[-(back + 1)])
-        return price / base - 1 if base else None
-
     volumes = history["volume"].dropna().astype(float)
-    average_volume = float(volumes.tail(20).mean()) if not volumes.empty else None
-    latest_volume = float(volumes.iloc[-1]) if not volumes.empty else None
-    volume_ratio = latest_volume / average_volume if average_volume else None
+    latest_volume, volume_ratio = volume_vs_previous_sessions(volumes.to_list(), sessions=20)
     above = parse_threshold(item.get("alert_above", ""))
     below = parse_threshold(item.get("alert_below", ""))
-    alert = ""
-    if above is not None and price >= above:
-        alert = "Vượt ngưỡng trên"
-    elif below is not None and price <= below:
-        alert = "Chạm ngưỡng dưới"
+    alert = threshold_alert(price, above, below)
 
     return {
         "Mã": ticker,
         "Giá gần nhất (VND)": price,
-        "% ngày": change_from_sessions(1),
-        "% tuần": change_from_sessions(5),
-        "% tháng": change_from_sessions(21),
+        "Loại giá": "Giá đóng cửa gần nhất" if current.get("source") == "historical_close" else "Báo giá hiện tại",
+        "% ngày": price_change_from_sessions(closes.to_list(), price, 1),
+        "% tuần": price_change_from_sessions(closes.to_list(), price, 5),
+        "% tháng": price_change_from_sessions(closes.to_list(), price, 21),
+        "KL gần nhất": latest_volume,
         "KL / TB 20 phiên": volume_ratio,
         "Ngưỡng trên": above,
         "Ngưỡng dưới": below,
@@ -128,8 +118,8 @@ try:
             lambda value: "background-color: #fff1f0; color: #b42318; font-weight: 700" if value else "",
             subset=["Cảnh báo"],
         ).format(
-            {"Giá gần nhất (VND)": "{:,.0f}", **{column: "{:.2%}" for column in change_columns},
-             "KL / TB 20 phiên": "{:.2f}x"},
+            {"Giá gần nhất (VND)": "{:,.0f}", "KL gần nhất": "{:,.0f}",
+             **{column: "{:.2%}" for column in change_columns}, "KL / TB 20 phiên": "{:.2f}x"},
             na_rep="—",
         )
         st.dataframe(styled, hide_index=True, use_container_width=True)
