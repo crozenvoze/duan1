@@ -58,6 +58,7 @@
     .status[data-kind="error"] { color: var(--danger); }
     .status[data-kind="info"] { color: #475569; }
     .privacy { margin: 20px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }
+    .privacy a { color: var(--brand-dark); font-weight: 650; }
     @media (max-width: 620px) {
       .wrap { width: min(100% - 22px, 880px); margin: 24px auto; }
       .grid { grid-template-columns: 1fr; gap: 15px; }
@@ -128,6 +129,7 @@
       </div>
       <p class="status" id="status" role="status" aria-live="polite"></p>
       <p class="privacy">Thông tin được gửi tới Google Sheet của bạn. Trade ID và thời điểm nhập sẽ được tạo tự động.</p>
+      <p class="privacy">Bạn đang mở bản HTML cục bộ. Bản này cần URL Web app và token riêng. Để dùng form Apps Script riêng tư, hãy mở URL kết thúc bằng <code>/exec</code> theo <a href="../docs/apps-script-deployment.md">hướng dẫn triển khai</a>.</p>
     </form>
   </main>
 
@@ -168,7 +170,7 @@
     connectionButton.addEventListener('click', async function () {
       if (sending) return;
       if (!configurationIsReady()) {
-        showStatus('Cần cấu hình URL Web app và token trước khi kiểm tra.', 'error');
+        showStatus('Bản HTML cục bộ chưa có URL Web app và token. Hãy mở URL /exec của Apps Script hoặc làm theo hướng dẫn triển khai bên dưới.', 'error');
         return;
       }
       sending = true;
@@ -272,7 +274,7 @@
       if (sending) return;
 
       if (!configurationIsReady()) {
-        showStatus('Cần cấu hình URL Web app và token trước khi gửi.', 'error');
+        showStatus('Bản HTML cục bộ chưa có URL Web app và token. Hãy mở URL /exec của Apps Script hoặc làm theo hướng dẫn triển khai bên dưới.', 'error');
         return;
       }
       if (!form.reportValidity()) return;
