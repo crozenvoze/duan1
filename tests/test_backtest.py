@@ -4,6 +4,7 @@ import unittest
 
 import numpy as np
 import pandas as pd
+from unittest.mock import patch
 
 from src.backtest import _rsi, efficient_frontier, fee_sensitivity, optimize_markowitz, portfolio_risk, run_backtest
 
@@ -42,6 +43,54 @@ class BacktestTests(unittest.TestCase):
         )
         self.assertGreater(result["metrics"]["final_equity"], 0)
         self.assertTrue(any("T+2" in item for item in result["assumptions"]))
+
+    def test_signal_is_executed_on_the_next_session(self):
+        dates = pd.date_range("2026-01-01", periods=4)
+        prices = pd.DataFrame({"date": dates, "close": [10, 11, 12, 13]})
+        targets = pd.Series([1, 0, 0, 0])
+        with patch("src.backtest._signals", return_value=targets):
+            result = run_backtest(prices, lot_size=1, fee_bps=0, slippage_bps=0)
+
+        self.assertEqual(result["equity_curve"].loc[0, "shares"], 0)
+        self.assertGreater(result["equity_curve"].loc[1, "shares"], 0)
+        self.assertEqual(result["equity_curve"].loc[1, "date"], dates[1])
+
+    def test_t_plus_two_delays_sale_until_two_sessions_after_buy(self):
+        dates = pd.date_range("2026-01-01", periods=5)
+        prices = pd.DataFrame({"date": dates, "close": [10, 11, 12, 13, 14]})
+        targets = pd.Series([0, 1, 0, 0, 0])
+        with patch("src.backtest._signals", return_value=targets):
+            result = run_backtest(prices, lot_size=1, fee_bps=0, slippage_bps=0)
+
+        trade = result["trades"].iloc[0]
+        self.assertEqual(trade["entry_date"], dates[2])
+        self.assertEqual(trade["exit_date"], dates[4])
+
+    def test_buy_at_upper_limit_is_deferred_to_next_available_session(self):
+        dates = pd.date_range("2026-01-01", periods=4)
+        prices = pd.DataFrame({"date": dates, "close": [100, 100, 107, 107], "exchange": "HOSE"})
+        targets = pd.Series([0, 1, 1, 1])
+        with patch("src.backtest._signals", return_value=targets):
+            result = run_backtest(
+                prices, lot_size=1, fee_bps=0, slippage_bps=0,
+                limit_pct_by_exchange={"HOSE": 0.07},
+            )
+
+        self.assertEqual(result["equity_curve"].loc[2, "shares"], 0)
+        self.assertGreater(result["equity_curve"].loc[3, "shares"], 0)
+
+    def test_sale_at_lower_limit_is_deferred_to_next_available_session(self):
+        dates = pd.date_range("2026-01-01", periods=5)
+        prices = pd.DataFrame({"date": dates, "close": [100, 100, 100, 93, 93], "exchange": "HOSE"})
+        targets = pd.Series([1, 1, 0, 0, 0])
+        with patch("src.backtest._signals", return_value=targets):
+            result = run_backtest(
+                prices, lot_size=1, fee_bps=0, slippage_bps=0,
+                limit_pct_by_exchange={"HOSE": 0.07},
+            )
+
+        self.assertEqual(result["trades"].iloc[0]["entry_date"], dates[1])
+        self.assertEqual(result["trades"].iloc[0]["exit_date"], dates[4])
 
     def test_markowitz_weights_sum_to_one_and_obey_cap(self):
         rng = np.random.default_rng(4)
