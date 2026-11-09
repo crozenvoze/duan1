@@ -15,6 +15,7 @@ from src.fundamentals import (
     calculate_fundamental_row,
     cash_conversion_quality_status,
     fetch_raw_statements,
+    receivables_growth_status,
     read_fundamentals,
 )
 
@@ -107,21 +108,46 @@ display_columns = [column for column in (
     "roe_direct", "roe_dupont", "roa", "debt_to_equity", "cash_conversion",
 ) if column in metrics.columns]
 st.dataframe(metrics[display_columns], hide_index=True, use_container_width=True)
-if "industry" in metrics.columns:
-    industry = metrics["industry"].iloc[-1]
-    peers = data[data["industry"].astype(str) == str(industry)].copy()
+industry_value = latest.get("industry", "")
+industry = "" if pd.isna(industry_value) else str(industry_value).strip()
+if industry and "industry" in data.columns:
+    peers = data[
+        (data["industry"].astype(str).str.strip() == industry)
+        & (data["ticker"].astype(str).str.upper() != ticker)
+        & (data["period"].astype(str) == str(latest["period"]))
+    ].drop_duplicates(subset=["ticker"])
+    peer_metric_rows = []
+    for peer in peers.to_dict(orient="records"):
+        try:
+            peer_metric_rows.append(calculate_fundamental_row(peer))
+        except (TypeError, ValueError):
+            continue
+    peer_metrics = pd.DataFrame(peer_metric_rows)
     peer_columns = [column for column in (
-        "revenue", "net_income", "total_assets", "total_equity", "net_cash_from_operating_activities",
-    ) if column in peers.columns]
-    peer_medians = peers[peer_columns].apply(pd.to_numeric, errors="coerce").median().dropna()
+        "roe_direct", "roa", "net_margin", "asset_turnover", "equity_multiplier",
+        "debt_to_equity", "cash_conversion",
+    ) if column in peer_metrics.columns]
+    peer_medians = peer_metrics[peer_columns].apply(pd.to_numeric, errors="coerce").median().dropna() if peer_columns else pd.Series(dtype=float)
     if not peer_medians.empty:
-        st.markdown(f"**Trung vị ngành {industry}** · {peers['ticker'].nunique()} mã trong dữ liệu hiện có")
-        peer_frame = peer_medians.rename("Trung vị (VND)").rename_axis("Chỉ tiêu").reset_index()
+        st.markdown(f"**Trung vị các mã cùng ngành {industry}, kỳ {latest['period']}** · {peers['ticker'].nunique()} mã so sánh")
+        labels = {
+            "roe_direct": "ROE", "roa": "ROA", "net_margin": "Biên lợi nhuận ròng",
+            "asset_turnover": "Vòng quay tài sản", "equity_multiplier": "Đòn bẩy vốn chủ",
+            "debt_to_equity": "Nợ vay / vốn chủ", "cash_conversion": "CFO / lợi nhuận ròng",
+        }
+        peer_frame = peer_medians.rename("Trung vị ngành").rename_axis("Chỉ tiêu").reset_index()
+        peer_frame["Chỉ tiêu"] = peer_frame["Chỉ tiêu"].map(labels).fillna(peer_frame["Chỉ tiêu"])
+        ratio_labels = {"ROE", "ROA", "Biên lợi nhuận ròng"}
+        peer_frame["Trung vị ngành"] = peer_frame.apply(
+            lambda row: f"{row['Trung vị ngành']:.2%}" if row["Chỉ tiêu"] in ratio_labels
+            else f"{row['Trung vị ngành']:.2f}x",
+            axis=1,
+        )
         st.dataframe(peer_frame, hide_index=True, use_container_width=True)
     else:
-        st.info(f"Đã có {len(peers)} dòng ngành {industry}, nhưng chưa đủ cột số liệu chung để tính trung vị.")
+        st.info(f"Chưa có dữ liệu đã ánh xạ của mã khác cùng ngành {industry} trong kỳ {latest['period']}.")
 else:
-    st.info("So sánh trung vị ngành sẽ hiển thị khi có dữ liệu ngành đã được ánh xạ và lưu trong tab.")
+    st.info("So sánh trung vị ngành cần lưu thêm ngành, kỳ báo cáo và dữ liệu đã ánh xạ của ít nhất một mã cùng ngành khác.")
 
 with st.expander("Chất lượng lợi nhuận — giới hạn dữ liệu hiện có"):
     status, message = cash_conversion_quality_status(
@@ -135,7 +161,16 @@ with st.expander("Chất lượng lợi nhuận — giới hạn dữ liệu hi�
         st.success(message)
     else:
         st.info(message)
+    receivables_status, receivables_message = receivables_growth_status(
+        selected.to_dict(orient="records")
+    )
+    if receivables_status == "warning":
+        st.warning(receivables_message)
+    elif receivables_status == "ok":
+        st.success(receivables_message)
+    else:
+        st.info(receivables_message)
     st.caption(
         "Quy ước cảnh báo: CFO/NI < 1 trong ít nhất 2 kỳ liên tiếp; đây là tín hiệu rà soát, không phải kết luận sai phạm. "
-        "Chưa đánh giá khoản phải thu tăng nhanh hơn doanh thu vì schema hiện chưa có số dư phải thu và chuỗi doanh thu so sánh."
+        "So sánh phải thu dùng cùng kỳ năm trước; revenue phải được ánh xạ nhất quán và receivables_ending là số dư cuối kỳ."
     )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from math import isfinite
+import re
 from typing import Any
 
 import pandas as pd
@@ -17,13 +18,14 @@ from src.metrics import (
     roa,
 )
 
-FUNDAMENTALS_HEADERS = [
+LEGACY_FUNDAMENTALS_HEADERS = [
     "ticker", "period", "revenue", "gross_profit", "net_income",
     "assets_beginning", "assets_ending", "equity_beginning", "equity_ending",
     "total_borrowings", "operating_cash_flow", "roe", "roa", "net_margin",
     "asset_turnover", "equity_multiplier", "debt_to_equity", "cash_conversion",
     "updated_at",
 ]
+FUNDAMENTALS_HEADERS = LEGACY_FUNDAMENTALS_HEADERS + ["industry", "receivables_ending"]
 
 
 def cash_conversion_quality_status(
@@ -76,6 +78,67 @@ def cash_conversion_quality_status(
             f"CFO/NI dưới {threshold:.2f}x trong {streak} kỳ liên tiếp; nên xem lại dòng tiền và thuyết minh.",
         )
     return "info", f"CFO/NI kỳ mới nhất dưới {threshold:.2f}x; một kỳ riêng lẻ chưa đủ kết luận, hãy tiếp tục theo dõi."
+
+
+def _period_year_and_quarter(value: Any) -> tuple[int, int | None] | None:
+    """Phân tích kỳ dạng YYYY, YYYYFY hoặc YYYYQn/YYY-Qn để so cùng kỳ năm trước."""
+    text = str(value or "").strip().upper().replace(" ", "")
+    match = re.fullmatch(r"(\d{4})(?:[-_/]?Q([1-4]))?", text)
+    if match:
+        return int(match.group(1)), int(match.group(2)) if match.group(2) else None
+    match = re.fullmatch(r"(\d{4})[-_/]?FY", text)
+    if match:
+        return int(match.group(1)), None
+    return None
+
+
+def receivables_growth_status(records: list[dict[str, Any]]) -> tuple[str, str]:
+    """So tăng trưởng phải thu với doanh thu ở cùng kỳ năm trước.
+
+    Chỉ chạy khi người dùng đã ánh xạ `revenue` nhất quán theo cùng kỳ báo cáo
+    và `receivables_ending` là tổng khoản phải thu cuối kỳ. Tỷ lệ tăng trưởng
+    = số kỳ này / số cùng kỳ năm trước - 1.
+    """
+    by_period: dict[tuple[int, int | None], dict[str, Any]] = {}
+    for record in records:
+        period = _period_year_and_quarter(record.get("period"))
+        if period is not None:
+            by_period[period] = record
+    if not by_period:
+        return "unknown", "Không nhận diện được kỳ báo cáo để so khoản phải thu cùng kỳ năm trước."
+
+    current_period = max(by_period, key=lambda period: (period[0], period[1] or 5))
+    current = by_period[current_period]
+    comparable = by_period.get((current_period[0] - 1, current_period[1]))
+    if comparable is None:
+        return "unknown", "Chưa có dữ liệu cùng kỳ năm trước để so khoản phải thu với doanh thu."
+
+    def finite_number(value: Any) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if isfinite(number) else None
+
+    revenue_now = finite_number(current.get("revenue"))
+    revenue_before = finite_number(comparable.get("revenue"))
+    receivables_now = finite_number(current.get("receivables_ending"))
+    receivables_before = finite_number(comparable.get("receivables_ending"))
+    values = (revenue_now, revenue_before, receivables_now, receivables_before)
+    if any(value is None for value in values) or revenue_before == 0 or receivables_before <= 0:
+        return "unknown", "Thiếu doanh thu hoặc số dư phải thu hợp lệ ở hai kỳ so sánh."
+
+    revenue_growth = revenue_now / revenue_before - 1
+    receivables_growth = receivables_now / receivables_before - 1
+    if receivables_growth > revenue_growth:
+        return (
+            "warning",
+            f"Phải thu tăng {receivables_growth:.2%}, nhanh hơn doanh thu {revenue_growth:.2%} so với cùng kỳ; cần xem thuyết minh và tuổi nợ.",
+        )
+    return (
+        "ok",
+        f"Phải thu tăng {receivables_growth:.2%}, không nhanh hơn doanh thu {revenue_growth:.2%} so với cùng kỳ.",
+    )
 
 
 def fetch_raw_statements(symbol: str, period: str = "quarter") -> dict[str, pd.DataFrame]:
@@ -169,6 +232,15 @@ def write_fundamentals(records: list[dict[str, Any]]) -> int:
         worksheet.append_row(FUNDAMENTALS_HEADERS)
         existing = [FUNDAMENTALS_HEADERS]
     headers = existing[0]
+    if headers == LEGACY_FUNDAMENTALS_HEADERS:
+        from gspread.utils import rowcol_to_a1
+
+        last_column = rowcol_to_a1(1, len(FUNDAMENTALS_HEADERS))
+        worksheet.update(
+            range_name=f"A1:{last_column}",
+            values=[FUNDAMENTALS_HEADERS],
+        )
+        headers = FUNDAMENTALS_HEADERS
     if headers != FUNDAMENTALS_HEADERS:
         raise RuntimeError(
             "Header tab Fundamentals chưa khớp schema hiện tại. Hãy lưu bản sao tab trước khi "
