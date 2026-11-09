@@ -74,7 +74,12 @@ def _normalize_history(frame: Any, symbol: str, *, price_scale: float = 1.0) -> 
     missing = [name for name in required if name not in result.columns]
     if missing:
         raise RuntimeError(f"Nguồn Vnstock trả thiếu cột {missing} cho mã {symbol}; cần kiểm tra schema.")
-    result["date"] = pd.to_datetime(result["date"], errors="coerce")
+    dates = pd.to_datetime(result["date"], errors="coerce")
+    # OHLCV Vnstock có thể trả mốc 07:00+07:00. Bỏ múi giờ sau khi giữ
+    # nguyên giờ địa phương rồi chuẩn hóa về ngày để cache/lọc không lệch phiên.
+    if getattr(dates.dt, "tz", None) is not None:
+        dates = dates.dt.tz_localize(None)
+    result["date"] = dates.dt.normalize()
     for column in ("open", "high", "low", "close", "volume"):
         result[column] = pd.to_numeric(result[column], errors="coerce")
     if price_scale != 1.0:
@@ -128,7 +133,9 @@ def fetch_history(
     raw = _retry(lambda: _fetch_ohlcv(market, "equity", ticker, start_text, end_text))
     # OHLCV Vnstock thể hiện giá cổ phiếu theo nghìn VND; UI và journal dùng VND.
     frame = _normalize_history(raw, ticker, price_scale=1000.0)
-    frame = frame[(frame["date"] >= start_ts) & (frame["date"] <= end_ts)].reset_index(drop=True)
+    frame = frame[
+        frame["date"].dt.date.between(start_ts.date(), end_ts.date())
+    ].reset_index(drop=True)
     temp_file = cache_file.with_suffix(".tmp")
     frame.to_csv(temp_file, index=False)
     temp_file.replace(cache_file)
@@ -191,7 +198,9 @@ def fetch_index_history(
     start_text, end_text = start_ts.strftime("%Y-%m-%d"), end_ts.strftime("%Y-%m-%d")
     raw = _retry(lambda: _fetch_ohlcv(market, "index", index_symbol, start_text, end_text))
     frame = _normalize_history(raw, index_symbol)
-    frame = frame[(frame["date"] >= start_ts) & (frame["date"] <= end_ts)].reset_index(drop=True)
+    frame = frame[
+        frame["date"].dt.date.between(start_ts.date(), end_ts.date())
+    ].reset_index(drop=True)
     temp_file = cache_file.with_suffix(".tmp")
     frame.to_csv(temp_file, index=False)
     temp_file.replace(cache_file)
