@@ -44,9 +44,16 @@ def open_spreadsheet() -> gspread.Spreadsheet:
         ) from exc
 
 
-def read_trades() -> list[list[str]]:
-    """Đọc dữ liệu dạng hàng từ tab Trades; hàng đầu tiên thường là tiêu đề."""
-    return read_worksheet("Trades")
+def read_trades() -> list[list[Any]]:
+    """Đọc Trades dạng thô để ngày giờ trả về serial ổn định theo vùng Sheet."""
+    try:
+        worksheet = open_spreadsheet().worksheet("Trades")
+        return worksheet.get_all_values(
+            value_render_option="UNFORMATTED_VALUE",
+            date_time_render_option="SERIAL_NUMBER",
+        )
+    except gspread.exceptions.WorksheetNotFound as exc:
+        raise RuntimeError("Không tìm thấy tab 'Trades' trong Google Sheet.") from exc
 
 
 def read_worksheet(title: str) -> list[list[str]]:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from math import inf
 from typing import Any, Iterable
 
@@ -19,21 +19,41 @@ def _number(value: Any, field: str, trade_id: str) -> float:
     return number
 
 
-def _trade_datetime(trade: dict[str, Any], index: int) -> tuple[datetime, int]:
-    """Lấy mốc sắp xếp từ timestamp hoặc trade_date; giữ thứ tự hàng nếu thiếu."""
-    raw = trade.get("timestamp") or trade.get("trade_date")
-    if isinstance(raw, datetime):
-        return raw, index
-    if isinstance(raw, date):
-        return datetime.combine(raw, datetime.min.time()), index
-    if raw:
-        text = str(raw).strip()
-        for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+def _parse_sheet_datetime(value: Any) -> datetime | None:
+    """Đọc ngày ISO hoặc số serial ngày giờ mà Google Sheets trả về."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if value >= 0 and value < 3_000_000:
+            # Google Sheets dùng epoch 1899-12-30 cho ngày giờ dạng số serial.
+            return datetime(1899, 12, 30) + timedelta(days=float(value))
+        return None
+    if value:
+        text = str(value).strip()
+        for pattern in (
+            "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d",
+            "%d/%m/%Y %H:%M:%S", "%d/%m/%Y", "%m/%d/%Y %H:%M:%S", "%m/%d/%Y",
+        ):
             try:
-                return datetime.strptime(text[:19], pattern), index
+                return datetime.strptime(text[:19], pattern)
             except ValueError:
                 pass
-    return datetime.min, index
+        try:
+            serial = float(text)
+        except ValueError:
+            return None
+        if 0 <= serial < 3_000_000:
+            return datetime(1899, 12, 30) + timedelta(days=serial)
+    return None
+
+
+def _trade_datetime(trade: dict[str, Any], index: int) -> tuple[datetime, datetime, int]:
+    """Sắp xếp theo ngày khớp, rồi timestamp nhập lệnh và thứ tự hàng."""
+    recorded_at = _parse_sheet_datetime(trade.get("timestamp")) or datetime.min
+    trade_date = _parse_sheet_datetime(trade.get("trade_date")) or recorded_at
+    return trade_date, recorded_at, index
 
 
 def _clean_trade(trade: dict[str, Any], index: int) -> dict[str, Any]:
@@ -71,16 +91,22 @@ def _clean_trade(trade: dict[str, Any], index: int) -> dict[str, Any]:
     }
 
 
-def rows_to_trades(rows: list[list[str]]) -> list[dict[str, str]]:
+def rows_to_trades(rows: list[list[Any]]) -> list[dict[str, Any]]:
     """Chuyển dữ liệu dạng hàng từ get_all_values thành danh sách giao dịch."""
     if not rows:
         return []
     headers = [str(cell).strip() for cell in rows[0]]
-    return [
-        {headers[col]: row[col] if col < len(row) else "" for col in range(len(headers))}
-        for row in rows[1:]
-        if any(str(cell).strip() for cell in row)
-    ]
+    output = []
+    for row in rows[1:]:
+        if not any(str(cell).strip() for cell in row):
+            continue
+        trade = {headers[col]: row[col] if col < len(row) else "" for col in range(len(headers))}
+        for field in ("timestamp", "trade_date"):
+            parsed = _parse_sheet_datetime(trade.get(field))
+            if parsed is not None:
+                trade[field] = parsed.isoformat(sep=" ", timespec="seconds") if field == "timestamp" else parsed.date().isoformat()
+        output.append(trade)
+    return output
 
 
 def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:

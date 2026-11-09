@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import gspread
 
-from src.sheets import upsert_prices_cache
+from src.sheets import read_trades, upsert_prices_cache
 
 
 class FakeWorksheet:
@@ -12,7 +12,8 @@ class FakeWorksheet:
         self.updates = []
         self.appended = []
 
-    def get_all_values(self):
+    def get_all_values(self, **kwargs):
+        self.read_options = kwargs
         return self.values
 
     def update(self, range_name, values):
@@ -80,6 +81,18 @@ class PriceCacheTests(unittest.TestCase):
         with patch("src.sheets.open_spreadsheet") as open_sheet:
             self.assertEqual(upsert_prices_cache([]), (0, 0))
         open_sheet.assert_not_called()
+
+
+class TradesReadTests(unittest.TestCase):
+    def test_reads_raw_sheet_values_with_date_serials(self):
+        worksheet = FakeWorksheet([["trade_id", "timestamp", "trade_date"]])
+        spreadsheet = FakeSpreadsheet(worksheet)
+        with patch("src.sheets.open_spreadsheet", return_value=spreadsheet):
+            rows = read_trades()
+
+        self.assertEqual(rows[0], ["trade_id", "timestamp", "trade_date"])
+        self.assertEqual(worksheet.read_options["value_render_option"], "UNFORMATTED_VALUE")
+        self.assertEqual(worksheet.read_options["date_time_render_option"], "SERIAL_NUMBER")
 
 
 if __name__ == "__main__":

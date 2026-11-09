@@ -2,7 +2,9 @@
 
 import unittest
 
-from src.journal import calculate_journal
+from datetime import datetime
+
+from src.journal import calculate_journal, rows_to_trades
 from src.sample_data import SAMPLE_TRADES
 
 
@@ -37,6 +39,27 @@ class JournalTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(ValueError, "Bán khống chưa được hỗ trợ"):
             calculate_journal(trades)
+
+    def test_backfilled_trades_sort_by_execution_date_not_entry_timestamp(self):
+        trades = [
+            {"trade_id": "SELL", "timestamp": "2026-01-06 10:00:00", "trade_date": "2026-01-02", "ticker": "FPT", "side": "SELL", "price": 110, "quantity": 100, "fee": 0},
+            {"trade_id": "BUY", "timestamp": "2026-01-07 10:00:00", "trade_date": "2026-01-01", "ticker": "FPT", "side": "BUY", "price": 100, "quantity": 100, "fee": 0},
+        ]
+        result = calculate_journal(trades)
+        self.assertEqual(result["realized_events"][0]["trade_id"], "SELL")
+        self.assertEqual(result["realized_events"][0]["realized_pnl"], 1000)
+
+    def test_rows_to_trades_normalizes_google_sheet_serial_dates(self):
+        sheet_epoch = datetime(1899, 12, 30)
+        trade_date_serial = (datetime(2026, 1, 5) - sheet_epoch).days
+        timestamp_serial = (datetime(2026, 1, 5, 9, 30) - sheet_epoch).total_seconds() / 86400
+        rows = [
+            ["trade_id", "timestamp", "trade_date", "ticker"],
+            ["T1", timestamp_serial, trade_date_serial, "FPT"],
+        ]
+        result = rows_to_trades(rows)[0]
+        self.assertEqual(result["timestamp"], "2026-01-05 09:30:00")
+        self.assertEqual(result["trade_date"], "2026-01-05")
 
 
 if __name__ == "__main__":
