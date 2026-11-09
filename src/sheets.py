@@ -151,15 +151,28 @@ def upsert_prices_cache(records: list[dict[str, Any]]) -> tuple[int, int]:
     return len(additions), len(updates)
 
 
-def main() -> None:
-    """Kiểm tra kết nối mà không in dữ liệu giao dịch riêng tư ra terminal."""
-    rows = read_trades()
+def main() -> int:
+    """Kiểm tra kết nối, chỉ in số dòng/header và báo lỗi mà không lộ dữ liệu."""
+    try:
+        rows = read_trades()
+    except (FileNotFoundError, RuntimeError) as exc:
+        print(f"Connection failed: {exc}")
+        return 1
+    except Exception as exc:
+        # Lỗi thư viện/mạng có thể chứa chi tiết môi trường; chỉ in loại lỗi.
+        print(
+            f"Connection failed ({type(exc).__name__}). Check network, Google API access, "
+            "and credentials. No trade data was printed."
+        )
+        return 1
+
     if not rows:
         print("Connection successful. The Trades tab is empty.")
-        return
-    print(f"Connection successful. Rows read: {len(rows) - 1 if rows else 0}")
+        return 0
+    print(f"Connection successful. Rows read: {len(rows) - 1}")
     print("Columns: " + ", ".join(rows[0]))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
