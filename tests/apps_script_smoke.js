@@ -152,6 +152,52 @@ const validId = "11111111-1111-4111-8111-111111111111";
 }
 
 {
+  const invalidCases = [
+    [{ side: "HOLD" }, /BUY hoặc SELL/],
+    [{ price: 0 }, /Giá khớp phải là số lớn hơn 0/],
+    [{ quantity: 1.5 }, /Khối lượng phải là số nguyên dương/],
+    [{ fee: -1 }, /Phí phải là số không âm/],
+    [{ stop_loss: 0 }, /Stop loss phải để trống hoặc là số lớn hơn 0/],
+    [{ target: -10 }, /Giá mục tiêu phải để trống hoặc là số lớn hơn 0/],
+  ];
+  for (const [overrides, expectedMessage] of invalidCases) {
+    const app = createHarness();
+    const result = app.post(payload(validId, overrides));
+    assert.equal(result.success, false);
+    assert.match(result.message, expectedMessage);
+    assert.equal(app.rows.length, 0);
+  }
+}
+
+{
+  const app = createHarness();
+  const result = app.post(payload(validId, { token: "incorrect-token" }));
+  assert.equal(result.success, false);
+  assert.match(result.message, /Token không hợp lệ/);
+  assert.equal(app.rows.length, 0);
+}
+
+{
+  const app = createHarness();
+  const output = app.context.doPost({ postData: { contents: "{not-json" } });
+  assert.equal(JSON.parse(output.getContent()).success, false);
+  assert.match(JSON.parse(output.getContent()).message, /JSON không hợp lệ/);
+  assert.equal(app.rows.length, 0);
+}
+
+{
+  const app = createHarness();
+  for (let index = 1; index <= 30; index += 1) {
+    const id = `${String(index).padStart(8, "0")}-1111-4111-8111-111111111111`;
+    assert.equal(app.post(payload(id)).success, true);
+  }
+  const blocked = app.post(payload("00000031-1111-4111-8111-111111111111"));
+  assert.equal(blocked.success, false);
+  assert.match(blocked.message, /vượt giới hạn gửi/);
+  assert.equal(app.rows.length, 31); // header cộng đúng 30 lệnh hợp lệ
+}
+
+{
   const app = createHarness([["ticker", "trade_id", "timestamp"]]);
   const result = app.post(payload(validId));
   assert.equal(result.success, false);
