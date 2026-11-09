@@ -159,6 +159,11 @@ with st.expander("Lấy, ánh xạ và lưu BCTC Vnstock", expanded=data.empty):
         "Ứng dụng dùng mã VAS ổn định cho các chỉ tiêu đã biết. Bạn cần chọn rõ hai mã khoản vay "
         "trong bảng cân đối trước khi tính và lưu; không dùng tổng nợ phải trả thay nợ vay."
     )
+    st.warning(
+        "Kỳ Quý của Vnstock cho biết kỳ báo cáo, nhưng tài liệu nguồn chưa xác nhận rõ các chỉ tiêu "
+        "dòng tiền và lợi nhuận là số riêng từng quý hay lũy kế từ đầu năm. Hãy đối chiếu với BCTC gốc "
+        "trước khi dùng tỷ lệ cash conversion hoặc so sánh các quý; ứng dụng không tự suy diễn hay trừ lũy kế."
+    )
     fetch_col, period_col = st.columns([2, 1])
     with fetch_col:
         ticker_raw = st.text_input("Mã cổ phiếu", max_chars=3, placeholder="FPT", key="fundamental_fetch_ticker").strip().upper()
