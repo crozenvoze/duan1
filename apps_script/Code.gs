@@ -259,7 +259,9 @@ function optionalPositiveNumber_(value) {
 /** Giới hạn độ dài văn bản để tránh ghi dữ liệu quá lớn vào Sheet. */
 function safeText_(value, maxLength) {
   if (typeof value !== 'string') return '';
-  return value.trim().slice(0, maxLength);
+  const text = value.trim().slice(0, maxLength);
+  // Không để dữ liệu nhập tự do bị Google Sheets hiểu là công thức.
+  return /^[=+\-@]/.test(text) ? "'" + text : text;
 }
 
 /** Tạo header theo đặc tả nếu tab Trades đang trống. */

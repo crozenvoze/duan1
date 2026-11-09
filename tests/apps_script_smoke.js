@@ -170,6 +170,17 @@ const validId = "11111111-1111-4111-8111-111111111111";
 }
 
 {
+  const app = createHarness([["trade_id", "timestamp", "trade_date", "ticker", "side", "price", "quantity", "fee", "reason", "stop_loss", "target", "strategy_tag"]]);
+  const result = app.post(payload("44444444-4444-4444-8444-444444444444", {
+    reason: "=IMPORTXML(\"https://example.invalid\",\"//a\")",
+    strategy_tag: "+SUM(1,1)",
+  }));
+  assert.equal(result.success, true);
+  assert.equal(app.rows[1][8][0], "'");
+  assert.equal(app.rows[1][11][0], "'");
+}
+
+{
   const app = createHarness();
   const concurrentId = "22222222-2222-4222-8222-222222222222";
   app.setBeforeLock(() => app.context.rememberRequestStatus_(concurrentId, true, "Already recorded."));
