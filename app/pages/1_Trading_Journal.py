@@ -182,7 +182,7 @@ with st.expander("Định nghĩa và giả định"):
         - **Win rate:** số sự kiện bán có lãi / tổng sự kiện bán có lãi hoặc lỗ.
         - **Profit factor:** tổng lãi / trị tuyệt đối tổng lỗ.
         - **Expectancy:** win rate × lãi trung bình − loss rate × lỗ trung bình.
-        - **R-multiple:** lãi/lỗ sự kiện bán / (|giá vốn bình quân − stop loss| × khối lượng).
+        - **R-multiple:** lãi/lỗ sự kiện bán / rủi ro ban đầu phân bổ cho số cổ phiếu bán. Stop loss khai ở lệnh mua được kế thừa và phân bổ bình quân theo vị thế còn lại; dữ liệu cũ có stop loss trên lệnh bán vẫn được hỗ trợ.
         - Mỗi lần bán là một sự kiện thống kê; bán khống, giá hiện tại và lãi/lỗ chưa thực hiện chưa được tính.
         """
     )

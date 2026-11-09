@@ -114,7 +114,9 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
 
     Giá vốn bình quân gồm phí BUY phân bổ vào giá vốn. Phí SELL được trừ khỏi
     lãi/lỗ thực hiện. Mỗi lần SELL là một sự kiện để tính win rate/expectancy;
-    drawdown tính trên P&L cộng dồn từ 0, không phải NAV có tiền mặt và giá thị trường.
+    stop loss từ các lần BUY tạo risk basis được phân bổ bình quân theo số cổ phiếu
+    còn giữ; stop loss trên dòng SELL chỉ dùng cho dữ liệu cũ chưa có risk basis.
+    Drawdown tính trên P&L cộng dồn từ 0, không phải NAV có tiền mặt và giá thị trường.
     """
     clean = [_clean_trade(trade, i) for i, trade in enumerate(trades)]
     clean.sort(key=lambda trade: trade["_sort"])
@@ -124,7 +126,9 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
 
     for trade in clean:
         ticker = trade["ticker"]
-        position = positions.setdefault(ticker, {"quantity": 0, "cost_basis": 0.0})
+        position = positions.setdefault(
+            ticker, {"quantity": 0, "cost_basis": 0.0, "risk_basis": 0.0}
+        )
         quantity = int(trade["quantity"])
         price = float(trade["price"])
         fee = float(trade["fee"])
@@ -132,6 +136,10 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
         if trade["side"] == "BUY":
             position["quantity"] = int(position["quantity"]) + quantity
             position["cost_basis"] = float(position["cost_basis"]) + price * quantity + fee
+            if trade["stop_loss"] is not None:
+                position["risk_basis"] = float(position["risk_basis"]) + abs(
+                    price - float(trade["stop_loss"])
+                ) * quantity
             continue
 
         held = int(position["quantity"])
@@ -146,7 +154,12 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
         pnl = (price * quantity) - allocated_cost - fee
         r_multiple = None
         stop_loss = trade["stop_loss"]
-        if stop_loss is not None:
+        risk_basis = float(position["risk_basis"])
+        allocated_risk = risk_basis * quantity / held if held else 0.0
+        if allocated_risk > 0:
+            r_multiple = pnl / allocated_risk
+        elif stop_loss is not None:
+            # Tương thích dữ liệu cũ ghi stop loss trên dòng BÁN thay vì MUA.
             initial_risk = abs(average_cost - float(stop_loss)) * quantity
             if initial_risk > 0:
                 r_multiple = pnl / initial_risk
@@ -165,6 +178,7 @@ def calculate_journal(trades: Iterable[dict[str, Any]]) -> dict[str, Any]:
         })
         position["quantity"] = held - quantity
         position["cost_basis"] = max(0.0, float(position["cost_basis"]) - allocated_cost)
+        position["risk_basis"] = max(0.0, risk_basis - allocated_risk)
 
     positions_result = {
         ticker: {

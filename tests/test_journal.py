@@ -40,6 +40,18 @@ class JournalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Bán khống chưa được hỗ trợ"):
             calculate_journal(trades)
 
+    def test_r_multiple_inherits_buy_stop_and_allocates_risk_across_partial_sells(self):
+        trades = [
+            {"trade_id": "B1", "trade_date": "2026-01-01", "ticker": "FPT", "side": "BUY", "price": 100, "quantity": 100, "fee": 0, "stop_loss": 90},
+            {"trade_id": "S1", "trade_date": "2026-01-02", "ticker": "FPT", "side": "SELL", "price": 110, "quantity": 50, "fee": 0},
+            {"trade_id": "S2", "trade_date": "2026-01-03", "ticker": "FPT", "side": "SELL", "price": 80, "quantity": 50, "fee": 0},
+        ]
+        result = calculate_journal(trades)
+
+        self.assertAlmostEqual(result["realized_events"][0]["r_multiple"], 1.0)
+        self.assertAlmostEqual(result["realized_events"][1]["r_multiple"], -2.0)
+        self.assertEqual(result["summary"]["r_multiple_count"], 2)
+
     def test_backfilled_trades_sort_by_execution_date_not_entry_timestamp(self):
         trades = [
             {"trade_id": "SELL", "timestamp": "2026-01-06 10:00:00", "trade_date": "2026-01-02", "ticker": "FPT", "side": "SELL", "price": 110, "quantity": 100, "fee": 0},
