@@ -7,13 +7,17 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-function createHarness() {
+function createHarness(initialRows = []) {
   const cacheValues = new Map();
-  const rows = [];
+  const rows = initialRows.map(row => [...row]);
   let beforeLock = null;
   const sheet = {
     getLastRow: () => rows.length,
-    getRange: () => ({ setValues: values => rows.push(...values) }),
+    getRange: (row, column, rowCount, columnCount) => ({
+      getValues: () => rows.slice(row - 1, row - 1 + rowCount)
+        .map(value => value.slice(column - 1, column - 1 + columnCount)),
+      setValues: values => rows.push(...values),
+    }),
     appendRow: row => rows.push(row),
   };
   const cache = {
@@ -26,7 +30,7 @@ function createHarness() {
     getContent() { return this.value; },
   });
   const context = {
-    console,
+    console: { log: console.log, error: () => {} },
     Date,
     JSON,
     Math,
@@ -109,7 +113,15 @@ const validId = "11111111-1111-4111-8111-111111111111";
 }
 
 {
-  const app = createHarness();
+  const app = createHarness([["ticker", "trade_id", "timestamp"]]);
+  const result = app.post(payload(validId));
+  assert.equal(result.success, false);
+  assert.match(result.message, /Cấu trúc tab Trades không đúng/);
+  assert.equal(app.rows.length, 1); // không nối dữ liệu vào schema sai
+}
+
+{
+  const app = createHarness([["trade_id", "timestamp", "trade_date", "ticker", "side", "price", "quantity", "fee", "reason", "stop_loss", "target", "strategy_tag"]]);
   const request = payload(validId);
   assert.equal(app.post(request).success, true);
   assert.equal(app.post(request).success, true);

@@ -132,8 +132,11 @@ function doPost(e) {
     }
   } catch (error) {
     console.error(error && error.stack ? error.stack : error);
-    rememberRequestStatus_(requestId, false, 'Có lỗi máy chủ khi lưu giao dịch. Vui lòng thử lại sau.');
-    return jsonResponse_(false, 'Có lỗi máy chủ khi lưu giao dịch. Vui lòng thử lại sau.');
+    const genericMessage = 'Có lỗi máy chủ khi lưu giao dịch. Vui lòng thử lại sau.';
+    const detail = error && typeof error.message === 'string' ? error.message : '';
+    const message = detail.indexOf('Cấu trúc tab Trades không đúng.') === 0 ? detail : genericMessage;
+    rememberRequestStatus_(requestId, false, message);
+    return jsonResponse_(false, message);
   }
 }
 
@@ -226,6 +229,16 @@ function safeText_(value, maxLength) {
 function ensureHeaders_(sheet) {
   if (sheet.getLastRow() === 0) {
     sheet.getRange(1, 1, 1, TRADES_HEADERS.length).setValues([TRADES_HEADERS]);
+    return;
+  }
+
+  const existing = sheet.getRange(1, 1, 1, TRADES_HEADERS.length).getValues()[0]
+    .map(value => String(value || '').trim());
+  const matches = TRADES_HEADERS.every((header, index) => existing[index] === header);
+  if (!matches) {
+    throw new Error(
+      'Cấu trúc tab Trades không đúng. Cần đúng thứ tự cột: ' + TRADES_HEADERS.join(', ')
+    );
   }
 }
 
