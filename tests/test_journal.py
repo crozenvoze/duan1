@@ -3,7 +3,7 @@
 import unittest
 
 from src.journal import calculate_journal
-from tests.sample_trades import SAMPLE_TRADES
+from src.sample_data import SAMPLE_TRADES
 
 
 class JournalTests(unittest.TestCase):

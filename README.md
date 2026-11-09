@@ -80,7 +80,7 @@ The 10-trade hand calculation and expected results are in [`docs/sample_calculat
 
 ## Deployment and public demos
 
-The local app is ready for private use. A public Streamlit deployment must use a separate demo Sheet filled only with fictional data; never give a public app credentials to the personal Sheet. Streamlit Community Cloud accepts app secrets in its settings, but this does not make a private dataset safe to expose through a public app. Keep the repository private if it contains any non-demo data or configuration.
+The full local app is ready for private use. `demo_app.py` is the public-safe entrypoint and uses fictional sample trades only; deploy that file for a portfolio demo. Do not deploy `app/main.py` with credentials to the personal Sheet as a public app. Streamlit Community Cloud accepts app secrets in its settings, but that does not make private trade data safe to expose through a public app. Keep the repository private if it contains any non-demo data or configuration.
 
 The static form token is present in the browser when a form is served, so it must be treated as public. The local form configuration is ignored by Git. For a public form, add a real access-control layer (for example, authenticated users and server-side authorization) before pointing it at any private Sheet; a token embedded in HTML is not authentication.
 

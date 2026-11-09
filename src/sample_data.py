@@ -1,4 +1,4 @@
-"""Bộ 10 giao dịch giả lập dùng để đối chiếu tay và kiểm thử journal."""
+"""Giao dịch giả lập dùng cho kiểm thử và bản demo công khai."""
 
 SAMPLE_TRADES = [
     {"trade_id": "S01", "trade_date": "2026-01-05", "ticker": "FPT", "side": "BUY", "price": 100, "quantity": 100, "fee": 0, "strategy_tag": "swing"},
