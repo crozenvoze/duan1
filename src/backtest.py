@@ -13,9 +13,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
+from scipy.optimize import linprog
 from scipy.stats import norm
 
 from src.metrics import cagr, max_drawdown, sharpe_ratio
+
+STANDARD_PRICE_LIMITS = {"HOSE": 0.07, "HNX": 0.10, "UPCOM": 0.15}
 
 
 def _rsi(close: pd.Series, period: int) -> pd.Series:
@@ -66,6 +69,7 @@ def run_backtest(
     lot_size: int = 100,
     risk_free_rate: float = 0.0,
     limit_pct_by_exchange: dict[str, float] | None = None,
+    benchmark_prices: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """Chạy long-only backtest với phí, trượt giá, lô chẵn và mô phỏng T+2.
 
@@ -171,9 +175,33 @@ def run_backtest(
         "open_shares": shares,
         "buy_and_hold_return": float(data["close"].iloc[-1] / data["close"].iloc[0] - 1),
     }
+    benchmark_curve = pd.DataFrame()
+    if benchmark_prices is not None:
+        if not {"date", "close"}.issubset(benchmark_prices.columns):
+            raise ValueError("benchmark_prices cần có cột date và close.")
+        benchmark = benchmark_prices[["date", "close"]].copy()
+        benchmark["date"] = pd.to_datetime(benchmark["date"], errors="coerce")
+        benchmark["close"] = pd.to_numeric(benchmark["close"], errors="coerce")
+        benchmark = benchmark.dropna(subset=["date", "close"]).drop_duplicates("date").sort_values("date")
+        comparison = curve_frame[["date", "equity"]].merge(benchmark, on="date", how="inner")
+        if len(comparison) < 2 or comparison["close"].iloc[0] <= 0 or comparison["equity"].iloc[0] <= 0:
+            raise ValueError("Cần ít nhất hai phiên trùng nhau để so sánh VN-Index.")
+        strategy_base = float(comparison["equity"].iloc[0])
+        index_base = float(comparison["close"].iloc[0])
+        benchmark_curve = pd.DataFrame({
+            "date": comparison["date"],
+            "strategy_normalized": comparison["equity"] / strategy_base * initial_capital,
+            "benchmark_normalized": comparison["close"] / index_base * initial_capital,
+        })
+        comparable_strategy_return = float(comparison["equity"].iloc[-1] / strategy_base - 1)
+        benchmark_return = float(comparison["close"].iloc[-1] / index_base - 1)
+        metrics["strategy_return_on_benchmark_window"] = comparable_strategy_return
+        metrics["benchmark_return"] = benchmark_return
+        metrics["benchmark_excess_return"] = comparable_strategy_return - benchmark_return
     return {
         "metrics": metrics,
         "equity_curve": curve_frame,
+        "benchmark_curve": benchmark_curve,
         "trades": pd.DataFrame(realized_trades),
         "assumptions": [
             "Tín hiệu ở phiên t được khớp tại giá đóng cửa phiên t+1.",
@@ -184,6 +212,28 @@ def run_backtest(
             "Cổ tức, sự kiện doanh nghiệp, thuế riêng từng sàn và khớp lệnh trong phiên chưa được mô phỏng.",
         ],
     }
+
+
+def fee_sensitivity(
+    prices: pd.DataFrame,
+    fee_levels_bps: list[float],
+    **backtest_options: Any,
+) -> pd.DataFrame:
+    """Chạy lại cùng chiến lược ở nhiều mức phí để lượng hóa độ nhạy kết quả."""
+    rows = []
+    for fee_bps in fee_levels_bps:
+        result = run_backtest(prices, fee_bps=float(fee_bps), **backtest_options)
+        metrics = result["metrics"]
+        rows.append({
+            "fee_bps_each_side": float(fee_bps),
+            "final_equity": metrics["final_equity"],
+            "total_return": metrics["total_return"],
+            "cagr": metrics["cagr"],
+            "sharpe": metrics["sharpe"],
+            "max_drawdown_pct": metrics["max_drawdown_pct"],
+            "closed_trades": metrics["closed_trades"],
+        })
+    return pd.DataFrame(rows)
 
 
 def portfolio_risk(
@@ -268,3 +318,48 @@ def optimize_markowitz(
         "sharpe": sharpe,
         "objective": objective,
     }
+
+
+def efficient_frontier(
+    returns: pd.DataFrame,
+    *,
+    max_weight: float = 0.4,
+    points: int = 25,
+) -> pd.DataFrame:
+    """Tạo các danh mục phương sai tối thiểu theo mức lợi suất năm mục tiêu."""
+    clean = returns.dropna(axis=1, how="any").dropna(axis=0, how="any")
+    if clean.shape[0] < 30 or clean.shape[1] < 2:
+        raise ValueError("Cần ít nhất 30 kỳ lợi suất và 2 mã có dữ liệu đầy đủ.")
+    count = clean.shape[1]
+    if max_weight <= 0 or max_weight > 1 or count * max_weight < 1:
+        raise ValueError("max_weight không khả thi với số mã hiện có.")
+    if points < 2:
+        raise ValueError("points phải từ 2 trở lên.")
+    mean = clean.mean().to_numpy() * 252
+    covariance = clean.cov().to_numpy() * 252
+    bounds = [(0, max_weight)] * count
+    sum_constraint = [{"type": "eq", "fun": lambda weights: np.sum(weights) - 1}]
+    minimum_return = linprog(mean, A_eq=np.ones((1, count)), b_eq=[1], bounds=bounds, method="highs")
+    maximum_return = linprog(-mean, A_eq=np.ones((1, count)), b_eq=[1], bounds=bounds, method="highs")
+    if not minimum_return.success or not maximum_return.success:
+        raise RuntimeError("Không xác định được miền lợi suất khả thi.")
+    low, high = float(minimum_return.fun), float(-maximum_return.fun)
+    targets = np.linspace(low, high, points)
+    result_rows = []
+    for target in targets:
+        constraints = sum_constraint + [{"type": "eq", "fun": lambda weights, goal=target: float(weights @ mean - goal)}]
+        result = minimize(
+            lambda weights: float(weights @ covariance @ weights),
+            np.repeat(1 / count, count), method="SLSQP", bounds=bounds,
+            constraints=constraints, options={"maxiter": 1000, "ftol": 1e-10},
+        )
+        if result.success:
+            variance = float(result.x @ covariance @ result.x)
+            result_rows.append({
+                "annual_return": float(result.x @ mean),
+                "annual_volatility": float(np.sqrt(max(variance, 0))),
+                **{f"weight_{symbol}": float(weight) for symbol, weight in zip(clean.columns, result.x)},
+            })
+    if len(result_rows) < 2:
+        raise RuntimeError("Không hội tụ đủ điểm để dựng đường biên hiệu quả.")
+    return pd.DataFrame(result_rows).sort_values("annual_volatility").reset_index(drop=True)

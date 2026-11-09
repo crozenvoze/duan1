@@ -45,15 +45,22 @@ def fetch_raw_statements(symbol: str, period: str = "quarter") -> dict[str, pd.D
             "tại https://vnstocks.com/download và kiểm tra điều kiện sử dụng Community."
         ) from exc
 
+    from src.config import get_setting
+
     fundamental = Fundamental()
+    source = get_setting("VNSTOCK_FUNDAMENTAL_SOURCE", "fhsc")
+    equity = getattr(fundamental, "equity", None)
+    instrument = equity(ticker) if callable(equity) else None
     outputs: dict[str, pd.DataFrame] = {}
-    for name, getter in (
-        ("income_statement", fundamental.equity.income_statement),
-        ("balance_sheet", fundamental.equity.balance_sheet),
-        ("cash_flow", fundamental.equity.cash_flow),
-    ):
+    for name in ("income_statement", "balance_sheet", "cash_flow"):
         try:
-            outputs[name] = pd.DataFrame(getter(symbol=ticker, period=period))
+            if instrument is not None:
+                # Vnstock v6: attach ticker first; each statement requires an explicit source.
+                outputs[name] = pd.DataFrame(getattr(instrument, name)(period=period, source=source))
+            else:
+                # Vnstock v5 compatibility; keep raw labels for manual VAS review.
+                getter = getattr(equity, name)
+                outputs[name] = pd.DataFrame(getter(symbol=ticker, period=period))
         except Exception as exc:
             raise RuntimeError(f"Không lấy được {name} cho {ticker}: {exc}") from exc
     return outputs

@@ -58,18 +58,30 @@ with st.sidebar:
     st.subheader("Bộ lọc")
     industry_options = sorted(data["industry"].dropna().astype(str).unique()) if "industry" in data else []
     industries = st.multiselect("Ngành", industry_options)
-    roe_min = st.number_input("ROE tối thiểu (%)", value=0.0, step=1.0) / 100
+    pe_min = st.number_input("P/E tối thiểu", value=0.0, min_value=0.0, step=1.0)
     pe_max = st.number_input("P/E tối đa", value=100.0, min_value=0.0, step=1.0)
+    pb_min = st.number_input("P/B tối thiểu", value=0.0, min_value=0.0, step=0.5)
     pb_max = st.number_input("P/B tối đa", value=20.0, min_value=0.0, step=0.5)
+    roe_min = st.number_input("ROE tối thiểu (%)", value=0.0, step=1.0) / 100
+    roe_max = st.number_input("ROE tối đa (%)", value=100.0, step=1.0) / 100
+    revenue_growth_min = st.number_input("Tăng trưởng doanh thu tối thiểu (%)", value=-100.0, step=1.0) / 100
+    eps_growth_min = st.number_input("Tăng trưởng EPS tối thiểu (%)", value=-100.0, step=1.0) / 100
     debt_max = st.number_input("Nợ vay/VCSH tối đa", value=5.0, min_value=0.0, step=0.1)
     liquidity_min = st.number_input("GTGD TB tối thiểu (VND)", value=0.0, min_value=0.0, step=100000000.0)
+    market_cap_min = st.number_input("Vốn hóa tối thiểu (VND)", value=0.0, min_value=0.0, step=100000000000.0)
 
 criteria = {
     "roe_min": roe_min,
+    "roe_max": roe_max,
+    "pe_min": pe_min,
     "pe_max": pe_max,
+    "pb_min": pb_min,
     "pb_max": pb_max,
+    "revenue_growth_min": revenue_growth_min,
+    "eps_growth_min": eps_growth_min,
     "debt_to_equity_max": debt_max,
     "avg_value_traded_min": liquidity_min,
+    "market_cap_min": market_cap_min,
     "industries": industries,
 }
 criteria = {key: value for key, value in criteria.items() if value not in (None, [], "")}

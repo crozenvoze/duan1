@@ -12,9 +12,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.backtest import optimize_markowitz, portfolio_risk, run_backtest
+from src.backtest import STANDARD_PRICE_LIMITS, efficient_frontier, fee_sensitivity, optimize_markowitz, portfolio_risk, run_backtest
 from src.journal import read_and_calculate
-from src.market_data import fetch_history
+from src.market_data import fetch_history, fetch_index_history
 from src.sheets import read_trades
 
 st.set_page_config(page_title="Backtest & Risk", page_icon="⚖️", layout="wide")
@@ -34,6 +34,7 @@ with st.sidebar:
     end_date = st.date_input("Ngày kết thúc", value=date.today())
     start_date = st.date_input("Ngày bắt đầu", value=end_date - timedelta(days=730))
     strategy = st.selectbox("Chiến lược", ["ma_cross", "rsi"], format_func=lambda value: "MA crossover" if value == "ma_cross" else "RSI")
+    exchange = st.selectbox("Sàn giao dịch", ["HOSE", "HNX", "UPCOM"])
     fast_window = st.number_input("MA nhanh", min_value=2, max_value=100, value=20)
     slow_window = st.number_input("MA chậm", min_value=3, max_value=250, value=50)
     rsi_period = st.number_input("RSI period", min_value=2, max_value=50, value=14)
@@ -48,6 +49,15 @@ if st.button("Chạy backtest", type="primary"):
     else:
         try:
             prices = load_history(symbol, start_date.isoformat(), end_date.isoformat())
+            prices["exchange"] = exchange
+            benchmark = None
+            try:
+                benchmark = fetch_index_history("VNINDEX", start_date.isoformat(), end_date.isoformat())
+                if benchmark.empty:
+                    benchmark = None
+                    st.warning("Nguồn chưa trả dữ liệu VN-Index cho kỳ này; tiếp tục không có benchmark.")
+            except Exception as benchmark_error:
+                st.warning(f"Không tải được VN-Index để so sánh: {benchmark_error}")
             result = run_backtest(
                 prices,
                 strategy=strategy,
@@ -58,6 +68,8 @@ if st.button("Chạy backtest", type="primary"):
                 slippage_bps=slippage_bps,
                 initial_capital=float(capital),
                 risk_free_rate=risk_free,
+                limit_pct_by_exchange=STANDARD_PRICE_LIMITS,
+                benchmark_prices=benchmark,
             )
             metrics = result["metrics"]
             a, b, c, d = st.columns(4)
@@ -66,18 +78,41 @@ if st.button("Chạy backtest", type="primary"):
             c.metric("Sharpe", "—" if metrics["sharpe"] is None else f"{metrics['sharpe']:.2f}")
             d.metric("Max drawdown", f"{metrics['max_drawdown_pct']:.2%}" if metrics["max_drawdown_pct"] is not None else "—")
             st.write(f"Buy-and-hold cùng khoảng: **{metrics['buy_and_hold_return']:.2%}** · Win rate giao dịch đóng: **{metrics['win_rate'] if metrics['win_rate'] is not None else float('nan'):.2%}**")
+            if "benchmark_return" in metrics:
+                st.write(
+                    f"Trong phiên giao dịch trùng nhau — chiến lược: **{metrics['strategy_return_on_benchmark_window']:.2%}** · "
+                    f"VN-Index: **{metrics['benchmark_return']:.2%}** · chênh lệch: **{metrics['benchmark_excess_return']:.2%}**"
+                )
 
             fig = go.Figure()
             curve = result["equity_curve"]
             fig.add_trace(go.Scatter(x=curve["date"], y=curve["equity"], mode="lines", name="Chiến lược"))
             normalized_buy_hold = prices["close"] / prices["close"].iloc[0] * capital
             fig.add_trace(go.Scatter(x=prices["date"], y=normalized_buy_hold, mode="lines", name="Buy-and-hold"))
+            if not result["benchmark_curve"].empty:
+                benchmark_curve = result["benchmark_curve"]
+                fig.add_trace(go.Scatter(x=benchmark_curve["date"], y=benchmark_curve["benchmark_normalized"], mode="lines", name="VN-Index"))
             fig.update_layout(title="Đường vốn", yaxis_title="VND", height=420)
             st.plotly_chart(fig, use_container_width=True)
             st.dataframe(result["trades"], hide_index=True, use_container_width=True)
             st.markdown("**Giả định và hạn chế**")
             for assumption in result["assumptions"]:
                 st.write(f"- {assumption}")
+            st.markdown("**Độ nhạy theo phí giao dịch**")
+            sensitivity = fee_sensitivity(
+                prices,
+                [0, 5, 10, 15, 20, 30],
+                strategy=strategy,
+                fast_window=int(fast_window),
+                slow_window=int(slow_window),
+                rsi_period=int(rsi_period),
+                slippage_bps=slippage_bps,
+                initial_capital=float(capital),
+                risk_free_rate=risk_free,
+                limit_pct_by_exchange=STANDARD_PRICE_LIMITS,
+            )
+            st.dataframe(sensitivity, hide_index=True, use_container_width=True)
+            st.caption("Biên độ giá mặc định cho ngày giao dịch thông thường: HOSE ±7%, HNX ±10%, UPCoM ±15%; cần kiểm tra trường hợp đặc biệt trước khi diễn giải.")
         except Exception as exc:
             st.error(f"Không chạy được backtest: {exc}")
 
@@ -129,6 +164,10 @@ if st.button("Tối ưu danh mục"):
         result = optimize_markowitz(return_frame, objective=objective_label, risk_free_rate=risk_free, max_weight=max_weight)
         st.dataframe(pd.DataFrame({"Mã": result["weights"].keys(), "Tỷ trọng": result["weights"].values()}), hide_index=True)
         st.write(f"Lợi suất kỳ vọng năm: {result['annual_return']:.2%} · Biến động năm: {result['annual_volatility']:.2%} · Sharpe: {result['sharpe']:.2f}")
+        frontier = efficient_frontier(return_frame, max_weight=max_weight)
+        frontier_chart = go.Figure(go.Scatter(x=frontier["annual_volatility"], y=frontier["annual_return"], mode="lines+markers", name="Đường biên hiệu quả"))
+        frontier_chart.update_layout(title="Đường biên hiệu quả", xaxis_title="Biến động năm hóa", yaxis_title="Lợi suất kỳ vọng năm hóa", height=360)
+        st.plotly_chart(frontier_chart, use_container_width=True)
         st.caption("Kết quả nhạy với giai đoạn dữ liệu và không bảo đảm hiệu suất tương lai.")
     except Exception as exc:
         st.error(f"Không tối ưu được danh mục: {exc}")

@@ -82,8 +82,10 @@ The 10-trade hand calculation and expected results are in [`docs/sample_calculat
 
 The full local app is ready for private use. `demo_app.py` is the public-safe entrypoint and uses fictional sample trades only; deploy that file for a portfolio demo. Do not deploy `app/main.py` with credentials to the personal Sheet as a public app. Streamlit Community Cloud accepts app secrets in its settings, but that does not make private trade data safe to expose through a public app. Keep the repository private if it contains any non-demo data or configuration.
 
+For optional Vnstock v6 market data, install `requirements-vnstock-v6.txt` in a separate environment and configure a supported source in `.env` (`VNSTOCK_SOURCE`, plus that source's API key/secret). This file installs Vnstock's current prerelease line, so confirm its official release notes before upgrading; the Vnstock API is not part of the core test suite. The v6 fundamentals page can display source reports, but mapping provider statement IDs into the project's saved canonical Fundamentals schema still requires an explicitly reviewed mapping.
+
 The static form token is present in the browser when a form is served, so it must be treated as public. The local form configuration is ignored by Git. For a public form, add a real access-control layer (for example, authenticated users and server-side authorization) before pointing it at any private Sheet; a token embedded in HTML is not authentication.
 
 ## Project status
 
-Core analytics and dashboard pages are implemented. Market data and fundamentals require provider access and verified source-to-canonical mappings; automated collection and public deployment remain environment-dependent. The tests validate calculations against fictional examples, not live provider data.
+Core analytics and dashboard pages are implemented. The backtest includes benchmark and fee sensitivity; private deployments still need a working Sheets service account and market-data source configuration. Automated statement collection, reviewed VAS mapping, bank-specific ratios, scheduled data updates, and public deployment are not completed because they require provider credentials and/or authorization to configure external services. The tests validate calculations against fictional examples, not live provider data.

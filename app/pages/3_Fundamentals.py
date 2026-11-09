@@ -95,8 +95,17 @@ display_columns = [column for column in (
 st.dataframe(metrics[display_columns], hide_index=True, use_container_width=True)
 if "industry" in metrics.columns:
     industry = metrics["industry"].iloc[-1]
-    peers = data[data["industry"] == industry]
-    st.caption(f"Trung vị ngành {industry}: {len(peers)} dòng dữ liệu trong tab hiện tại.")
+    peers = data[data["industry"].astype(str) == str(industry)].copy()
+    peer_columns = [column for column in (
+        "revenue", "net_income", "total_assets", "total_equity", "net_cash_from_operating_activities",
+    ) if column in peers.columns]
+    peer_medians = peers[peer_columns].apply(pd.to_numeric, errors="coerce").median().dropna()
+    if not peer_medians.empty:
+        st.markdown(f"**Trung vị ngành {industry}** · {peers['ticker'].nunique()} mã trong dữ liệu hiện có")
+        peer_frame = peer_medians.rename("Trung vị (VND)").rename_axis("Chỉ tiêu").reset_index()
+        st.dataframe(peer_frame, hide_index=True, use_container_width=True)
+    else:
+        st.info(f"Đã có {len(peers)} dòng ngành {industry}, nhưng chưa đủ cột số liệu chung để tính trung vị.")
 else:
     st.info("So sánh trung vị ngành sẽ hiển thị khi có dữ liệu ngành đã được ánh xạ và lưu trong tab.")
 

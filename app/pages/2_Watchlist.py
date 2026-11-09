@@ -116,12 +116,23 @@ try:
         st.warning(error)
     if output:
         frame = pd.DataFrame(output)
-        for column in ("% ngày", "% tuần", "% tháng"):
-            frame[column] = frame[column].map(lambda value: "—" if value is None else f"{value:.2%}")
-        frame["KL / TB 20 phiên"] = frame["KL / TB 20 phiên"].map(
-            lambda value: "—" if value is None else f"{value:.2f}x"
+        change_columns = ["% ngày", "% tuần", "% tháng"]
+        styled = frame.style
+        for column in change_columns:
+            styled = styled.map(
+                lambda value: "color: #067647" if pd.notna(value) and value > 0
+                else ("color: #b42318" if pd.notna(value) and value < 0 else ""),
+                subset=[column],
+            )
+        styled = styled.map(
+            lambda value: "background-color: #fff1f0; color: #b42318; font-weight: 700" if value else "",
+            subset=["Cảnh báo"],
+        ).format(
+            {"Giá gần nhất (VND)": "{:,.0f}", **{column: "{:.2%}" for column in change_columns},
+             "KL / TB 20 phiên": "{:.2f}x"},
+            na_rep="—",
         )
-        st.dataframe(frame, hide_index=True, use_container_width=True)
+        st.dataframe(styled, hide_index=True, use_container_width=True)
     elif not errors:
         st.info("Chưa có mã hợp lệ trong Watchlist.")
 except Exception:
