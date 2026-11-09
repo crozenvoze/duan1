@@ -25,7 +25,7 @@ Vnstock có thể yêu cầu thêm khóa cấp quyền Vnstock khi chạy trên 
 3. Chọn **New repository secret** cho từng mục cần thiết:
    - `GOOGLE_SHEETS_SPREADSHEET_ID`: ID của Sheet `Equity_Toolkit`.
    - `GOOGLE_SERVICE_ACCOUNT_JSON`: toàn bộ nội dung file service-account JSON. Chỉ GitHub Actions mới dùng giá trị này; không tạo file JSON trong repository.
-   - `VNSTOCK_SOURCE`: viết thường, một trong `ssi`, `dnse`, `fhsc`.
+   - Nguồn đã được cố định là SSI trong workflow, không cần tạo secret `VNSTOCK_SOURCE`.
    - Thêm đúng API key/secret tương ứng với nguồn ở bảng trên.
    - `VNSTOCK_API_KEY` chỉ khi log báo `VNSTOCK_TIER_CI_KEY_REQUIRED`; khóa này thuộc tài khoản Vnstock, khác với khóa nguồn SSI.
 4. Đảm bảo service account đã được chia sẻ quyền **Editor** trên đúng Google Sheet. Không bật chia sẻ công khai cho Sheet.

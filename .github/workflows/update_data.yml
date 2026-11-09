@@ -22,7 +22,7 @@ jobs:
         env:
           GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          VNSTOCK_SOURCE: ${{ secrets.VNSTOCK_SOURCE }}
+          VNSTOCK_SOURCE: ssi
           SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
           SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
           VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
@@ -74,7 +74,7 @@ jobs:
         env:
           GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          VNSTOCK_SOURCE: ${{ secrets.VNSTOCK_SOURCE }}
+          VNSTOCK_SOURCE: ssi
           SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
           SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
           VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
