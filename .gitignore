@@ -26,6 +26,7 @@ service-account*.json
 # Jupyter và công cụ phát triển
 .ipynb_checkpoints/
 .pytest_cache/
+.cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -43,3 +44,24 @@ desktop.ini
 *.tmp
 *.bak
 data/private/
+
+# Bộ cài đặt Python/Git bị đặt nhầm ở thư mục dự án trên máy Windows
+/DLLs/
+/Doc/
+/Git/
+/Lib/
+/Scripts/
+/include/
+/libs/
+/tcl/
+/Git-*-64-bit.exe
+/python-*-amd64.exe
+/python.exe
+/pythonw.exe
+/python*.dll
+/vcruntime140*.dll
+/LICENSE.txt
+/NEWS.txt
+
+# Cấu hình form cá nhân; không xuất bản token
+/web_form/config.local.js

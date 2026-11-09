@@ -46,22 +46,26 @@ def open_spreadsheet() -> gspread.Spreadsheet:
 
 def read_trades() -> list[list[str]]:
     """Đọc dữ liệu dạng hàng từ tab Trades; hàng đầu tiên thường là tiêu đề."""
+    return read_worksheet("Trades")
+
+
+def read_worksheet(title: str) -> list[list[str]]:
+    """Đọc dữ liệu dạng hàng từ một tab trong Google Sheet."""
     try:
-        worksheet = open_spreadsheet().worksheet("Trades")
+        worksheet = open_spreadsheet().worksheet(title)
         return worksheet.get_all_values()
     except gspread.exceptions.WorksheetNotFound as exc:
-        raise RuntimeError("Không tìm thấy tab 'Trades' trong Google Sheet.") from exc
+        raise RuntimeError(f"Không tìm thấy tab '{title}' trong Google Sheet.") from exc
 
 
 def main() -> None:
-    """Kiểm tra kết nối và in tiêu đề cùng tối đa năm hàng mẫu."""
+    """Kiểm tra kết nối mà không in dữ liệu giao dịch riêng tư ra terminal."""
     rows = read_trades()
     if not rows:
-        print("Kết nối thành công. Tab Trades hiện chưa có dữ liệu.")
+        print("Connection successful. The Trades tab is empty.")
         return
-    print(f"Kết nối thành công. Số hàng đọc được: {len(rows)}")
-    for row in rows[:6]:
-        print(" | ".join(row))
+    print(f"Connection successful. Rows read: {len(rows) - 1 if rows else 0}")
+    print("Columns: " + ", ".join(rows[0]))
 
 
 if __name__ == "__main__":
