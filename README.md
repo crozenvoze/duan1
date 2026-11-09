@@ -64,6 +64,7 @@ node tests/apps_script_smoke.js
 
 Python tests use fictional trades and prices. The Apps Script smoke suite uses in-memory Google-service fakes; neither suite calls Google Sheets or a market-data provider.
 The 10-trade hand calculation and expected results are in [`docs/sample_calculation.md`](docs/sample_calculation.md).
+GitHub Actions runs the Python suite, syntax check, and Apps Script smoke suite on pushes and pull requests to `main`.
 
 ## Methodology and assumptions
 
