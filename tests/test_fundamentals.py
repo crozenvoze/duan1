@@ -1,6 +1,10 @@
 import unittest
 
-from src.fundamentals import FUNDAMENTALS_HEADERS, calculate_fundamental_row
+from src.fundamentals import (
+    FUNDAMENTALS_HEADERS,
+    calculate_fundamental_row,
+    cash_conversion_quality_status,
+)
 
 
 class FundamentalsTests(unittest.TestCase):
@@ -31,6 +35,14 @@ class FundamentalsTests(unittest.TestCase):
         incomplete.pop("assets_beginning")
         with self.assertRaisesRegex(ValueError, "assets_beginning"):
             calculate_fundamental_row(incomplete)
+
+    def test_cash_conversion_warns_only_after_two_low_positive_income_periods(self):
+        level, _ = cash_conversion_quality_status([0.8, 0.7], [10, 12])
+        self.assertEqual(level, "warning")
+        level, _ = cash_conversion_quality_status([0.8], [10])
+        self.assertEqual(level, "info")
+        level, _ = cash_conversion_quality_status([0.8, 0.7], [10, -2])
+        self.assertEqual(level, "unknown")
 
 
 if __name__ == "__main__":

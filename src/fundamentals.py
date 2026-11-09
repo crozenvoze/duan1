@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from math import isfinite
 from typing import Any
 
 import pandas as pd
@@ -23,6 +24,58 @@ FUNDAMENTALS_HEADERS = [
     "asset_turnover", "equity_multiplier", "debt_to_equity", "cash_conversion",
     "updated_at",
 ]
+
+
+def cash_conversion_quality_status(
+    cash_conversion_values: list[Any],
+    net_income_values: list[Any],
+    *,
+    threshold: float = 1.0,
+    consecutive_periods: int = 2,
+) -> tuple[str, str]:
+    """Đánh dấu CFO/NI thấp kéo dài; đây là cảnh báo theo dõi, không kết luận.
+
+    Chỉ đánh giá kỳ có lợi nhuận ròng dương. Ngưỡng mặc định CFO/NI < 1 trong
+    hai kỳ liên tiếp là quy ước cảnh báo bảo thủ để người dùng xem lại BCTC.
+    """
+    if len(cash_conversion_values) != len(net_income_values):
+        raise ValueError("Số kỳ cash conversion và lợi nhuận ròng phải bằng nhau.")
+    if threshold <= 0 or consecutive_periods < 1:
+        raise ValueError("Ngưỡng phải dương và số kỳ liên tiếp phải từ 1 trở lên.")
+
+    def finite_number(value: Any) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if isfinite(number) else None
+
+    valid_periods: list[tuple[float, float] | None] = []
+    for cash_ratio, income in zip(cash_conversion_values, net_income_values):
+        ratio_value, income_value = finite_number(cash_ratio), finite_number(income)
+        if ratio_value is None or income_value is None or income_value <= 0:
+            valid_periods.append(None)
+        else:
+            valid_periods.append((ratio_value, income_value))
+
+    if not valid_periods or valid_periods[-1] is None:
+        return "unknown", "Chưa đủ dữ liệu để đánh giá CFO/NI ở kỳ mới nhất (cần lợi nhuận ròng dương)."
+
+    latest_ratio = valid_periods[-1][0]
+    if latest_ratio >= threshold:
+        return "ok", f"CFO/NI kỳ mới nhất là {latest_ratio:.2f}x; chưa chạm ngưỡng theo dõi {threshold:.2f}x."
+
+    streak = 0
+    for period in reversed(valid_periods):
+        if period is None or period[0] >= threshold:
+            break
+        streak += 1
+    if streak >= consecutive_periods:
+        return (
+            "warning",
+            f"CFO/NI dưới {threshold:.2f}x trong {streak} kỳ liên tiếp; nên xem lại dòng tiền và thuyết minh.",
+        )
+    return "info", f"CFO/NI kỳ mới nhất dưới {threshold:.2f}x; một kỳ riêng lẻ chưa đủ kết luận, hãy tiếp tục theo dõi."
 
 
 def fetch_raw_statements(symbol: str, period: str = "quarter") -> dict[str, pd.DataFrame]:

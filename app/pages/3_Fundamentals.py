@@ -11,7 +11,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.fundamentals import calculate_fundamental_row, fetch_raw_statements, read_fundamentals
+from src.fundamentals import (
+    calculate_fundamental_row,
+    cash_conversion_quality_status,
+    fetch_raw_statements,
+    read_fundamentals,
+)
 
 st.set_page_config(page_title="Fundamentals", page_icon="📊", layout="wide")
 
@@ -70,22 +75,31 @@ col2.metric("Biên lợi nhuận ròng", "—" if pd.isna(latest["net_margin"]) 
 col3.metric("ROE", "—" if pd.isna(latest["roe_direct"]) else f"{latest['roe_direct']:.2%}")
 col4.metric("Cash conversion", "—" if pd.isna(latest["cash_conversion"]) else f"{latest['cash_conversion']:.2f}x")
 
+st.subheader("Xu hướng doanh thu và sinh lời")
 left, right = st.columns(2)
 with left:
     fig = go.Figure()
-    for column, label in (("net_margin", "Biên ròng"), ("roe_direct", "ROE"), ("roa", "ROA")):
-        if column in metrics:
-            fig.add_trace(go.Scatter(x=metrics["period"], y=metrics[column] * 100, mode="lines+markers", name=label))
-    fig.update_layout(title="Xu hướng biên lợi nhuận, ROE và ROA", yaxis_title="%", height=340)
+    fig.add_trace(go.Scatter(
+        x=metrics["period"], y=metrics["revenue"], mode="lines+markers", name="Doanh thu thuần"
+    ))
+    fig.update_layout(title="Doanh thu thuần theo kỳ", yaxis_title="VND", height=340)
     st.plotly_chart(fig, use_container_width=True)
 
 with right:
     fig = go.Figure()
-    for column, label in (("net_margin", "Net margin"), ("asset_turnover", "Asset turnover"), ("equity_multiplier", "Equity multiplier")):
+    for column, label in (("net_margin", "Biên ròng"), ("roe_direct", "ROE"), ("roa", "ROA")):
         if column in metrics:
-            fig.add_trace(go.Bar(x=metrics["period"], y=metrics[column], name=label))
-    fig.update_layout(title="DuPont 3 bước", barmode="group", height=340)
+            fig.add_trace(go.Scatter(x=metrics["period"], y=metrics[column] * 100, mode="lines+markers", name=label))
+    fig.update_layout(title="Biên lợi nhuận, ROE và ROA", yaxis_title="%", height=340)
     st.plotly_chart(fig, use_container_width=True)
+
+st.subheader("DuPont 3 bước")
+fig = go.Figure()
+for column, label in (("net_margin", "Net margin"), ("asset_turnover", "Asset turnover"), ("equity_multiplier", "Equity multiplier")):
+    if column in metrics:
+        fig.add_trace(go.Bar(x=metrics["period"], y=metrics[column], name=label))
+fig.update_layout(title="Các thành phần DuPont theo kỳ", barmode="group", height=360)
+st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Bảng chỉ số và đối chiếu DuPont")
 display_columns = [column for column in (
@@ -110,7 +124,18 @@ else:
     st.info("So sánh trung vị ngành sẽ hiển thị khi có dữ liệu ngành đã được ánh xạ và lưu trong tab.")
 
 with st.expander("Chất lượng lợi nhuận — giới hạn dữ liệu hiện có"):
-    st.markdown(
-        "Cash conversion = dòng tiền HĐKD / lợi nhuận ròng. Muốn kiểm tra khoản phải thu tăng nhanh hơn doanh thu, "
-        "cần bổ sung số dư phải thu đầu/cuối kỳ và doanh thu các kỳ so sánh. Không đánh giá khi thiếu những trường đó."
+    status, message = cash_conversion_quality_status(
+        metrics["cash_conversion"].tolist(), metrics["net_income"].tolist()
+    )
+    if status == "warning":
+        st.warning(message)
+    elif status == "info":
+        st.info(message)
+    elif status == "ok":
+        st.success(message)
+    else:
+        st.info(message)
+    st.caption(
+        "Quy ước cảnh báo: CFO/NI < 1 trong ít nhất 2 kỳ liên tiếp; đây là tín hiệu rà soát, không phải kết luận sai phạm. "
+        "Chưa đánh giá khoản phải thu tăng nhanh hơn doanh thu vì schema hiện chưa có số dư phải thu và chuỗi doanh thu so sánh."
     )
