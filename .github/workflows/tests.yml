@@ -39,3 +39,6 @@ jobs:
 
       - name: Run Apps Script smoke tests
         run: node tests/apps_script_smoke.js
+
+      - name: Check local web-form JavaScript
+        run: node tests/web_form_smoke.js
