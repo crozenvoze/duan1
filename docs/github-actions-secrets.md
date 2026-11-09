@@ -10,11 +10,11 @@ Vnstock v6 yêu cầu khóa API của nguồn bạn chọn. Các nguồn đượ
 
 | Nguồn | Secrets cần tạo |
 |---|---|
-| SSI | `SSI_API_KEY`, `SSI_API_SECRET` |
-| DNSE | `DNSE_API_KEY`, `DNSE_API_SECRET` |
-| FHSC | `FHSC_API_KEY` |
+| SSI — [Developer Portal](https://developers.ssi.com.vn/) | `SSI_API_KEY`, `SSI_API_SECRET` |
+| DNSE — [Developer Portal](https://developers.dnse.com.vn/) | `DNSE_API_KEY`, `DNSE_API_SECRET` |
+| FHSC — [Open API](https://developers.fhsc.com.vn/) | `FHSC_API_KEY` |
 
-Tạo khóa tại cổng chính thức của nhà cung cấp đã chọn và xem điều khoản/quota của họ. Đừng dùng mã OTP đăng nhập TCBS làm secret dài hạn; OTP không được lưu trong workflow.
+Tạo khóa tại cổng chính thức của nhà cung cấp đã chọn và xem điều khoản/quota của họ. Với SSI, workflow chỉ cần dữ liệu thị trường; không cần quyền đặt lệnh. Nếu cổng cho phép chọn phạm vi, chỉ bật phạm vi dữ liệu thị trường. Đừng dùng mã OTP đăng nhập TCBS làm secret dài hạn; OTP không được lưu trong workflow.
 
 ## 2. Thêm secrets vào GitHub
 
