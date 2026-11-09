@@ -25,6 +25,7 @@ jobs:
           VNSTOCK_SOURCE: ${{ secrets.VNSTOCK_SOURCE }}
           SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
           SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
           DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
           DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
           FHSC_API_KEY: ${{ secrets.FHSC_API_KEY }}
@@ -46,6 +47,8 @@ jobs:
               output.write(f"ready={'true' if ready else 'false'}\n")
           if not ready:
               print("::notice::Chưa cấu hình đủ GitHub Secrets cho Google Sheets và nguồn Vnstock; bỏ qua lần chạy.")
+          if not os.getenv("VNSTOCK_API_KEY"):
+              print("::notice::VNSTOCK_API_KEY chưa có. Nếu Vnstock báo VNSTOCK_TIER_CI_KEY_REQUIRED, hãy thêm secret này theo hướng dẫn trong docs/github-actions-secrets.md.")
           PY
 
       - name: Check out repository
@@ -74,6 +77,7 @@ jobs:
           VNSTOCK_SOURCE: ${{ secrets.VNSTOCK_SOURCE }}
           SSI_API_KEY: ${{ secrets.SSI_API_KEY }}
           SSI_API_SECRET: ${{ secrets.SSI_API_SECRET }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
           DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
           DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
           FHSC_API_KEY: ${{ secrets.FHSC_API_KEY }}
