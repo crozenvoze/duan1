@@ -80,6 +80,16 @@ def read_trades() -> list[list[Any]]:
         raise RuntimeError("Không tìm thấy tab 'Trades' trong Google Sheet.") from exc
 
 
+def read_trades_headers() -> list[Any]:
+    """Chỉ đọc hàng tiêu đề Trades để kiểm tra kết nối mà không tải giao dịch."""
+    try:
+        worksheet = open_spreadsheet().worksheet("Trades")
+        rows = worksheet.get("A1:L1", value_render_option="UNFORMATTED_VALUE")
+        return rows[0] if rows else []
+    except gspread.exceptions.WorksheetNotFound as exc:
+        raise RuntimeError("Không tìm thấy tab 'Trades' trong Google Sheet.") from exc
+
+
 def read_worksheet(title: str) -> list[list[str]]:
     """Đọc dữ liệu dạng hàng từ một tab trong Google Sheet."""
     try:
@@ -152,9 +162,9 @@ def upsert_prices_cache(records: list[dict[str, Any]]) -> tuple[int, int]:
 
 
 def main() -> int:
-    """Kiểm tra kết nối, chỉ in số dòng/header và báo lỗi mà không lộ dữ liệu."""
+    """Kiểm tra quyền truy cập bằng hàng tiêu đề, không đọc dòng giao dịch."""
     try:
-        rows = read_trades()
+        headers = read_trades_headers()
     except (FileNotFoundError, RuntimeError) as exc:
         print(f"Connection failed: {exc}")
         return 1
@@ -166,11 +176,11 @@ def main() -> int:
         )
         return 1
 
-    if not rows:
-        print("Connection successful. The Trades tab is empty.")
+    if not headers:
+        print("Connection successful. The Trades tab exists but has no header row.")
         return 0
-    print(f"Connection successful. Rows read: {len(rows) - 1}")
-    print("Columns: " + ", ".join(rows[0]))
+    print("Connection successful. Trade rows were not read.")
+    print("Columns: " + ", ".join(str(header) for header in headers))
     return 0
 
 

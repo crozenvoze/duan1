@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import gspread
 
-from src.sheets import main, read_trades, upsert_prices_cache
+from src.sheets import main, read_trades, read_trades_headers, upsert_prices_cache
 
 
 class FakeWorksheet:
@@ -17,6 +17,11 @@ class FakeWorksheet:
     def get_all_values(self, **kwargs):
         self.read_options = kwargs
         return self.values
+
+    def get(self, range_name, **kwargs):
+        self.requested_range = range_name
+        self.read_options = kwargs
+        return self.values[:1]
 
     def update(self, range_name, values):
         self.updates.append((range_name, values))
@@ -117,22 +122,30 @@ class TradesReadTests(unittest.TestCase):
         self.assertEqual(worksheet.read_options["value_render_option"], "UNFORMATTED_VALUE")
         self.assertEqual(worksheet.read_options["date_time_render_option"], "SERIAL_NUMBER")
 
-    def test_connection_check_does_not_print_trade_rows(self):
+    def test_reads_only_trade_header_range_for_connection_check(self):
+        worksheet = FakeWorksheet([["trade_id", "timestamp", "trade_date"], ["private", "", ""]])
+        spreadsheet = FakeSpreadsheet(worksheet)
+        with patch("src.sheets.open_spreadsheet", return_value=spreadsheet):
+            headers = read_trades_headers()
+
+        self.assertEqual(headers, ["trade_id", "timestamp", "trade_date"])
+        self.assertEqual(worksheet.requested_range, "A1:L1")
+        self.assertEqual(worksheet.read_options["value_render_option"], "UNFORMATTED_VALUE")
+
+    def test_connection_check_does_not_read_or_print_trade_rows(self):
         output = StringIO()
-        with patch("src.sheets.read_trades", return_value=[
-            ["trade_id", "ticker"], ["private-id", "FPT"]
-        ]), redirect_stdout(output):
+        with patch("src.sheets.read_trades", side_effect=AssertionError("must not read Trades rows")), \
+             patch("src.sheets.read_trades_headers", return_value=["trade_id", "ticker"]), \
+             redirect_stdout(output):
             result = main()
 
         self.assertEqual(result, 0)
-        self.assertIn("Rows read: 1", output.getvalue())
+        self.assertIn("Trade rows were not read", output.getvalue())
         self.assertIn("Columns: trade_id, ticker", output.getvalue())
-        self.assertNotIn("private-id", output.getvalue())
-        self.assertNotIn("FPT", output.getvalue())
 
     def test_connection_check_sanitizes_unexpected_network_errors(self):
         output = StringIO()
-        with patch("src.sheets.read_trades", side_effect=OSError("sensitive error detail")), redirect_stdout(output):
+        with patch("src.sheets.read_trades_headers", side_effect=OSError("sensitive error detail")), redirect_stdout(output):
             result = main()
 
         self.assertEqual(result, 1)
