@@ -4,13 +4,69 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from datetime import date
 
 import pandas as pd
 
-from src.market_data import _fetch_ohlcv, _normalize_history, fetch_history
+from src.market_data import _fetch_ohlcv, _normalize_history, fetch_history, get_current_price
 
 
 class MarketDataTests(unittest.TestCase):
+    def test_current_price_v5_quote_is_already_in_vnd(self):
+        class Instrument:
+            def quote(self):
+                return pd.DataFrame({"close_price": [12345.0]})
+
+        class Market:
+            def equity(self, symbol):
+                self.symbol = symbol
+                return Instrument()
+
+        market = Market()
+        with patch("src.market_data._market_client", return_value=market):
+            result = get_current_price("fpt")
+
+        self.assertEqual(market.symbol, "FPT")
+        self.assertEqual(result, {"ticker": "FPT", "price": 12345.0, "source": "quote"})
+
+    def test_current_price_v6_quote_scales_thousand_vnd_to_vnd(self):
+        class Instrument:
+            def quote(self):
+                return pd.DataFrame({"close": [12.345]})
+
+        class Market:
+            def equity(self, symbol):
+                return Instrument()
+
+        with patch("src.market_data._market_client", return_value=Market()):
+            result = get_current_price("FPT")
+
+        self.assertEqual(result, {"ticker": "FPT", "price": 12345.0, "source": "quote"})
+
+    def test_current_price_falls_back_to_latest_history_when_quote_fails(self):
+        class Instrument:
+            def quote(self):
+                raise RuntimeError("quote unavailable")
+
+        class Market:
+            def equity(self, symbol):
+                return Instrument()
+
+        history = pd.DataFrame({
+            "date": [pd.Timestamp("2026-01-06")],
+            "close": [12345.0],
+        })
+        with patch("src.market_data._market_client", return_value=Market()), patch(
+            "src.market_data.vietnam_today", return_value=date(2026, 1, 6)
+        ) as today, patch("src.market_data.fetch_history", return_value=history) as fetch:
+            result = get_current_price("FPT")
+
+        today.assert_called_once_with()
+        fetch.assert_called_once_with("FPT", "2025-12-27", "2026-01-06")
+        self.assertEqual(result["ticker"], "FPT")
+        self.assertEqual(result["price"], 12345.0)
+        self.assertEqual(result["source"], "historical_close")
+
     def test_normalize_equity_prices_to_vnd(self):
         raw = pd.DataFrame({
             "time": ["2026-01-05"], "open": [10.0], "high": [11.0],
