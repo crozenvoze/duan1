@@ -40,3 +40,11 @@ Không chọn quyền truy cập công khai cho Sheet. Mở URL `/exec` khi đã
 4. Để xác nhận ghi thật theo tiêu chí Phase 1, chỉ gửi một giao dịch thật của bạn khi đã sẵn sàng, rồi kiểm tra dòng mới trong tab `Trades`. Nếu chưa muốn ghi giao dịch, dừng ở bước 3.
 
 Nếu bạn cần tiếp tục dùng `web_form/index.html` cục bộ, chạy `python -m src.configure_form` trong môi trường `.venv`, nhập URL `/exec` và token. Trang cục bộ gửi qua POST `no-cors` rồi hỏi trạng thái qua JSONP; nếu trình duyệt hoặc quyền Google chặn luồng này, hãy mở trực tiếp giao diện Apps Script ở URL `/exec` thay vì bật truy cập công khai.
+
+## 4. Xử lý thông báo thiếu URL hoặc token
+
+Thông báo này xuất hiện khi mở `web_form/index.html` như một tệp cục bộ (`file:///...`). Tệp HTML cục bộ cần `web_form/config.local.js` có hai trường `appsScriptUrl` và `formToken`; tệp cấu hình này bị Git bỏ qua nên không được tải từ GitHub.
+
+- **Cách khuyến nghị:** mở URL Web app kết thúc bằng `/exec` khi đã đăng nhập bằng tài khoản triển khai. Trang Apps Script phục vụ `Index.html` và không yêu cầu token trong trình duyệt.
+- **Nếu cần dùng HTML cục bộ:** từ thư mục dự án chạy `python -m src.configure_form` trong môi trường `.venv`, nhập URL `/exec` và token đã lưu trong Script Properties. Token phải dài ít nhất 32 ký tự. Không dán token vào chat hoặc commit `config.local.js`.
+- Sau khi tạo hoặc sửa cấu hình, tải lại trang cục bộ. Nếu vẫn thấy thông báo cũ, đóng tab đang mở và mở lại `web_form/index.html` từ thư mục dự án hiện tại.
