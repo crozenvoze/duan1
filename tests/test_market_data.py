@@ -5,13 +5,58 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from datetime import date
+from types import SimpleNamespace
+import sys
 
 import pandas as pd
 
-from src.market_data import _fetch_ohlcv, _normalize_history, fetch_history, get_current_price
+from src.market_data import _fetch_ohlcv, _normalize_history, _retry, fetch_history, get_current_price, list_symbols_by_industry
 
 
 class MarketDataTests(unittest.TestCase):
+    def test_retry_repeats_transient_failure_then_returns_result(self):
+        attempts = []
+
+        def operation():
+            attempts.append(1)
+            if len(attempts) < 3:
+                raise OSError("transient")
+            return "ok"
+
+        with patch("src.market_data.time.sleep") as sleep:
+            result = _retry(operation, attempts=3)
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_retry_raises_after_maximum_attempts(self):
+        operation = unittest.mock.Mock(side_effect=OSError("offline"))
+        with patch("src.market_data.time.sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "sau 3 lần thử"):
+                _retry(operation, attempts=3)
+
+        self.assertEqual(operation.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_list_symbols_by_industry_uses_configured_reference_source(self):
+        rows = [{"symbol": "VCB", "industry": "Banks"}]
+        sources = []
+
+        class Reference:
+            def __init__(self, source):
+                sources.append(source)
+                self.industry = SimpleNamespace(list=lambda: rows)
+
+        fake_vnstock = SimpleNamespace(Reference=Reference)
+        with patch.dict(sys.modules, {"vnstock": fake_vnstock}), patch(
+            "src.config.get_setting", return_value="ssi"
+        ):
+            result = list_symbols_by_industry()
+
+        self.assertEqual(sources, ["ssi"])
+        self.assertEqual(result.to_dict("records"), rows)
+
     def test_current_price_v5_quote_is_already_in_vnd(self):
         class Instrument:
             def quote(self):
